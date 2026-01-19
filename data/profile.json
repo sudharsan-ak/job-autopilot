@@ -1,0 +1,43 @@
+{
+  "fullName": "Sudharsan Srinivasan",
+  "email": "sudharsanak1010@gmail.com",
+  "phone": "6822830833",
+  "location": "Lewisville, TX, USA",
+
+  "linkedin": "https://www.linkedin.com/in/sudharsan-srinivasan10/",
+  "github": "https://github.com/sudharsan-ak",
+  "portfolio": "https://sudharsansrinivasan.com",
+
+  "resumePdfPath": "C:\\Users\\sudha\\VS Code Files\\job-autopilot\\data\\Sudharsan Srinivasan Resume 2026.pdf",
+
+  "keywords": [
+    "react",
+    "typescript",
+    "javascript",
+    "node",
+    "frontend",
+    "full stack",
+    "mongodb",
+    "postgres",
+    "aws"
+  ],
+  "avoidPhrases": [
+    "no sponsorship",
+    "cannot sponsor",
+    "we do not sponsor",
+    "without sponsorship",
+    "c2c",
+    "corp to corp",
+    "1099",
+    "security clearance",
+    "us citizen",
+    "citizens only"
+  ],
+
+  "defaults": {
+    "authorizedToWork": "Yes",
+    "needsSponsorship": "Yes",
+    "startDate": "2 weeks",
+    "salaryExpectation": "$150,000"
+  }
+}
