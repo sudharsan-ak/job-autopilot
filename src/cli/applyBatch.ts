@@ -17,58 +17,23 @@ function detectPlatform(url: string): "greenhouse" | "lever" | "ashby" | "unknow
   return "unknown";
 }
 
-// Keep candidates broad but still oriented around LinkedIn apply UI.
-const APPLY_CANDIDATES = [
-  // External apply anchor on top card
-  "a[data-control-name='jobdetails_topcard_inapply']",
-  "a[data-control-name='jobdetails_topcard_inapply-apply-button']",
-  "a[data-control-name='jobdetails_topcard_inapply_apply_button']",
-  // External apply sometimes in other areas
-  "a.jobs-apply-button",
-  // Button variants (may not have href)
-  "button[data-control-name='jobdetails_topcard_inapply']",
-  "button.jobs-apply-button",
-  // last resort (can match Easy Apply too)
-  "a:has-text('Apply')",
-  "button:has-text('Apply')"
-] as const;
+async function tryClickExternalApply(page: Page) {
+  // Prefer external apply on LinkedIn job page (best-effort)
+  const candidates = [
+    "a[data-control-name='jobdetails_topcard_inapply']",
+    "a[data-control-name='jobdetails_topcard_inapply-apply-button']",
+    "a[data-control-name='jobdetails_topcard_inapply'] span",
+    "button[data-control-name='jobdetails_topcard_inapply']",
+    "button.jobs-apply-button",
+    "a.jobs-apply-button",
+    "a:has-text('Apply')",
+    "button:has-text('Apply')"
+  ];
 
-/**
- * Best-effort: extract an external apply href without clicking.
- * Returns:
- * - string URL if we can find an anchor href that looks external
- * - null if we can't determine (button-only, SPA, easy apply, etc.)
- */
-async function extractExternalApplyHref(liPage: Page): Promise<string | null> {
-  for (const sel of APPLY_CANDIDATES) {
-    const loc = liPage.locator(sel).first();
+  for (const sel of candidates) {
+    const loc = page.locator(sel).first();
     try {
-      if (!(await loc.isVisible({ timeout: 900 }))) continue;
-
-      const tag = await loc.evaluate((el) => el.tagName.toLowerCase()).catch(() => "");
-      if (tag !== "a") continue;
-
-      const href = await loc.getAttribute("href");
-      if (!href) continue;
-
-      // Normalize relative href
-      const abs = new URL(href, liPage.url()).toString();
-
-      // Heuristic: External apply often redirects out of LinkedIn
-      // (Could still be linkedin.com redirect URL, that's OK; we can check if it contains ashby)
-      return abs;
-    } catch {
-      // try next
-    }
-  }
-  return null;
-}
-
-async function clickApplyBestEffort(liPage: Page): Promise<boolean> {
-  for (const sel of APPLY_CANDIDATES) {
-    const loc = liPage.locator(sel).first();
-    try {
-      if (!(await loc.isVisible({ timeout: 900 }))) continue;
+      if (!(await loc.isVisible({ timeout: 1200 }))) continue;
       await loc.click({ timeout: 2500 });
       return true;
     } catch {
@@ -79,6 +44,7 @@ async function clickApplyBestEffort(liPage: Page): Promise<boolean> {
 }
 
 /**
+ * ✅ Step-2 critical fix:
  * After clicking Apply, LinkedIn often opens ATS in a NEW TAB.
  * This helper returns the page that likely contains the ATS.
  */
@@ -88,7 +54,8 @@ async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): 
   // Watch for a new tab after click
   const popupPromise = context.waitForEvent("page", { timeout: 8000 }).catch(() => null);
 
-  const clicked = await clickApplyBestEffort(liPage);
+  const clicked = await tryClickExternalApply(liPage);
+
   if (!clicked) return liPage;
 
   // If a popup opened, use it
@@ -103,7 +70,11 @@ async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): 
   // Otherwise, maybe same-tab navigation. Wait a bit.
   try {
     await liPage.waitForTimeout(800);
-    await liPage.waitForFunction((prev) => window.location.href !== prev, before, { timeout: 6000 });
+    await liPage.waitForFunction(
+      (prev) => window.location.href !== prev,
+      before,
+      { timeout: 6000 }
+    );
   } catch {
     // could still be SPA/no URL change
   }
@@ -134,10 +105,8 @@ async function main() {
   const context = await browser.newContext({ storageState: storagePath });
 
   console.log(`Approved jobs: ${approved.length}`);
-  console.log(
-    "Flow: open each job in NEW tab -> (pre-check external apply href if possible) -> skip non-Ashby and close LI tab -> click Apply -> ATS tab -> autofill -> wait 2s -> continue."
-  );
-  console.log("Greenhouse/Lever detection kept intact for later.\n");
+  console.log("Step 2 flow: open each job in a NEW TAB -> click Apply -> switch to ATS tab if it opens -> autofill -> wait 2s -> continue.");
+  console.log("NOTE: We DO NOT close previous tabs.\n");
 
   for (const job of approved) {
     const link = job.link;
@@ -149,33 +118,16 @@ async function main() {
     console.log(link);
     console.log("===============================================\n");
 
-    // New LI job tab
+    // ✅ NEW TAB for the LinkedIn job (keeps previous app tabs open)
     const liPage = await context.newPage();
+
     await liPage.goto(link, { waitUntil: "domcontentloaded" });
-    await liPage.waitForTimeout(1200);
+    await liPage.waitForTimeout(1500);
 
-    // ✅ Pre-check: if we can extract external apply href and it clearly isn't Ashby, skip early.
-    const extHref = await extractExternalApplyHref(liPage);
-    if (extHref) {
-      const extLower = extHref.toLowerCase();
-
-      // If the external apply link itself already indicates it's not Ashby, skip.
-      // (Some hrefs are linkedin redirect URLs; still OK if they contain ashby somewhere)
-      const looksAshby = extLower.includes("ashbyhq.com") || extLower.includes("ashby");
-      if (!looksAshby) {
-        console.log(`Pre-check external apply URL: ${extHref}`);
-        console.log("➡️  External apply does not look like Ashby. Skipping this job and closing LinkedIn tab.\n");
-        await liPage.close().catch(() => {});
-        continue;
-      } else {
-        console.log(`Pre-check external apply URL looks like Ashby: ${extHref}`);
-      }
-    } else {
-      console.log("Pre-check: Could not extract external apply href (button-only/Easy Apply/etc). Will click Apply and detect after.");
-    }
-
-    // Click apply and get the ATS page (popup/new tab possible)
+    // ✅ Click apply and get the ATS page (could be popup/new tab)
     const atsPage = await clickApplyAndFindAtsPage(context, liPage);
+
+    // Let the ATS page settle
     await atsPage.waitForTimeout(1500);
 
     const landedUrl = atsPage.url();
@@ -184,38 +136,30 @@ async function main() {
     console.log(`Landed on: ${landedUrl}`);
     console.log(`Detected platform: ${platform}`);
 
-    // ✅ If it is not Ashby, close the LinkedIn tab as requested.
-    // (Keep ATS tab open only for Ashby; for others, we may keep for later, but user asked to skip non-ashby.)
-    if (platform !== "ashby") {
-      console.log("➡️  Not Ashby. Skipping this job.");
-      await liPage.close().catch(() => {});
-
-      // Leave ATS tab behavior unchanged for now:
-      // - If ATS opened in a new tab and it's not Ashby, we can optionally close it too.
-      // You asked specifically to close the LinkedIn job tab; leaving ATS tab open can clutter.
-      // We'll close ATS tab too if it's not the same as LinkedIn page.
-      if (atsPage !== liPage) {
-        await atsPage.close().catch(() => {});
-      }
-
-      await liPage.waitForTimeout(0).catch(() => {});
+    // If not ATS, skip (Step 2 behavior)
+    if (platform === "unknown") {
+      console.log("Not on Greenhouse/Lever/Ashby yet. Skipping this job.\n");
+      await atsPage.waitForTimeout(2000);
       continue;
     }
 
-    // ✅ Ashby: run autofill
-    console.log("Running Ashby autofill...");
-    await autofillAshby(atsPage, profile);
+    // ✅ This should now log correctly when ATS page is Ashby
+    if (platform === "ashby") {
+      console.log("Running Ashby autofill...");
+      await autofillAshby(atsPage, profile);
+    } else if (platform === "lever") {
+      console.log("Lever detected (autofill not added yet). Skipping autofill.");
+    } else if (platform === "greenhouse") {
+      console.log("Greenhouse detected (autofill not added yet). Skipping autofill.");
+    }
 
-    // Step 2 requirement: wait 2 seconds then proceed
+    // ✅ Step 2: wait 2 seconds then proceed
     await atsPage.waitForTimeout(2000);
-    console.log("✅ Finished this job (left Ashby tab open). Moving to next...\n");
-
-    // You did NOT ask to close LI tab when Ashby is reached; you only asked to not close previous tabs.
-    // We'll keep LI tab open too. If you want LI tab closed even for Ashby, say so.
+    console.log("✅ Finished this job (left tabs open). Moving to next...\n");
   }
 
-  console.log("✅ All jobs processed for Ashby-only flow (tabs left open).");
-  // Not closing browser; later steps will refine.
+  console.log("✅ Step 2 complete: processed all approved jobs (tabs left open).");
+  // Not closing browser in Step 2 yet. Step 3 will finalize "keep open".
 }
 
 main().catch((err) => {
