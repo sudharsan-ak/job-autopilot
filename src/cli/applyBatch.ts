@@ -34,8 +34,8 @@ async function clickApplyBestEffort(page: Page) {
     if (!el) continue;
 
     try {
-      await el.click({ timeout: 2500 });
-      await page.waitForTimeout(1500);
+      await el.click({ timeout: 1500 });
+      await page.waitForTimeout(900);
       return true;
     } catch {}
   }

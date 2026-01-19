@@ -21,6 +21,7 @@
     "postgres",
     "aws"
   ],
+
   "avoidPhrases": [
     "no sponsorship",
     "cannot sponsor",
@@ -37,7 +38,30 @@
   "defaults": {
     "authorizedToWork": "Yes",
     "needsSponsorship": "Yes",
+    "willNowOrInFutureRequireSponsorship": "Yes",
     "startDate": "2 weeks",
     "salaryExpectation": "$150,000"
+  },
+
+  "preferences": {
+    "willingToRelocateOrCommute": "Yes"
+  },
+
+  "workAuthorization": {
+    "authorizedToWorkInUS": "Yes",
+    "currentStatus": "H-1B visa"
+  },
+
+  "sponsorship": {
+    "requiresSponsorshipNow": "Yes",
+    "requiresSponsorshipInFuture": "Yes"
+  },
+
+  "eeo": {
+    "gender": "Male",
+    "raceEthnicity": "Asian",
+    "hispanicOrLatino": "No",
+    "veteranStatus": "Not a veteran",
+    "disabilityStatus": "No disability"
   }
 }

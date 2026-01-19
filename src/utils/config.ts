@@ -2,6 +2,10 @@ import * as fs from "fs";
 import * as path from "path";
 
 export type Profile = {
+  preferences: any;
+  eeo: any;
+  sponsorship: any;
+  workAuthorization: any;
   fullName: string;
   email: string;
   phone: string;
@@ -17,6 +21,7 @@ export type Profile = {
   avoidPhrases: string[];
 
   defaults: {
+    willNowOrInFutureRequireSponsorship: any;
     authorizedToWork: string;
     needsSponsorship: string;
     startDate: string;
