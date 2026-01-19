@@ -12,4 +12,5 @@ npm run collect:linkedin -- --count=10 --url 'https://www.linkedin.com/jobs/sear
 
 
 // after data/jobs.csv is populated, trigger the automation
-npm run apply:batch  
+npm run apply:batch for windows
+npm run apply:batch:mac for mac
