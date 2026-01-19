@@ -180,7 +180,7 @@ async function main() {
     company: j.company || "",
     location: j.location || "",
     link: j.link,
-    approved: "",
+    approved: "true",
     notes: ""
   }));
 
