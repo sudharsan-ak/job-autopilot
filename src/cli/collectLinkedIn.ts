@@ -35,6 +35,118 @@ function writeCsv(filePath: string, rows: Record<string, string>[], headers: str
   fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
 }
 
+function parseFirstCsvField(line: string): string {
+  const trimmed = line.trim();
+  if (!trimmed) return "";
+  if (!trimmed.startsWith('"')) {
+    const idx = trimmed.indexOf(",");
+    return idx === -1 ? trimmed : trimmed.slice(0, idx);
+  }
+  let i = 1;
+  let out = "";
+  while (i < trimmed.length) {
+    const ch = trimmed[i];
+    if (ch === '"') {
+      if (trimmed[i + 1] === '"') {
+        out += '"';
+        i += 2;
+        continue;
+      }
+      break;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+function parseCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"';
+          i += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+    if (ch === ",") {
+      out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+function getNextId(filePath: string, headers: string[]): number {
+  if (!fs.existsSync(filePath)) return 1;
+  const content = fs.readFileSync(filePath, "utf-8");
+  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return 1;
+  if (lines[0].trim() !== headers.join(",")) return 1;
+
+  let maxId = 0;
+  for (let i = 1; i < lines.length; i++) {
+    const first = parseFirstCsvField(lines[i]);
+    const num = parseInt(first, 10);
+    if (!Number.isNaN(num)) maxId = Math.max(maxId, num);
+  }
+  return maxId + 1;
+}
+
+function getExistingLinks(filePath: string, headers: string[]): Set<string> {
+  const links = new Set<string>();
+  if (!fs.existsSync(filePath)) return links;
+  const content = fs.readFileSync(filePath, "utf-8");
+  const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return links;
+  if (lines[0].trim() !== headers.join(",")) return links;
+
+  const linkIndex = headers.indexOf("link");
+  if (linkIndex === -1) return links;
+
+  for (let i = 1; i < lines.length; i++) {
+    const fields = parseCsvLine(lines[i]);
+    const link = (fields[linkIndex] ?? "").trim();
+    if (link) links.add(link);
+  }
+  return links;
+}
+
+function appendCsv(filePath: string, rows: Record<string, string>[], headers: string[]) {
+  if (!fs.existsSync(filePath)) {
+    writeCsv(filePath, rows, headers);
+    return;
+  }
+  const content = fs.readFileSync(filePath, "utf-8");
+  const hasHeader = content.split(/\r?\n/)[0]?.trim() === headers.join(",");
+  const lines: string[] = [];
+  if (!hasHeader) {
+    lines.push(headers.join(","));
+  }
+  for (const r of rows) {
+    lines.push(headers.map((h) => csvEscape(r[h] ?? "")).join(","));
+  }
+  const prefix = content.endsWith("\n") || content.length === 0 ? "" : "\n";
+  fs.appendFileSync(filePath, prefix + lines.join("\n"), "utf-8");
+}
+
 async function autoScroll(page: any, times: number) {
   for (let i = 0; i < times; i++) {
     const didScroll = await page.evaluate(() => {
@@ -227,6 +339,9 @@ async function main() {
   const scrollChunk = 3;
   const maxPages = 10;
   const pageSize = 25;
+  const headers = ["id", "source", "title", "company", "location", "link", "approved", "notes"];
+  const existingLinks = getExistingLinks(outPath, headers);
+  const nextId = getNextId(outPath, headers);
 
   console.log("Scrolling to load job cards...");
   let jobs: JobRow[] = [];
@@ -323,19 +438,20 @@ async function main() {
 
   console.log(`Using first ${trimmed.length} jobs (requested ${count}).`);
 
-  const rowsForCsv = trimmed.map((j, idx) => ({
-    id: String(idx + 1),
-    source: "linkedin",
-    title: j.title || "",
-    company: j.company || "",
-    location: j.location || "",
-    link: j.link,
-    approved: "true",
-    notes: ""
-  }));
+  const rowsForCsv = trimmed
+    .filter((j) => !existingLinks.has(j.link))
+    .map((j, idx) => ({
+      id: String(nextId + idx),
+      source: "linkedin",
+      title: j.title || "",
+      company: j.company || "",
+      location: j.location || "",
+      link: j.link,
+      approved: "true",
+      notes: ""
+    }));
 
-  const headers = ["id", "source", "title", "company", "location", "link", "approved", "notes"];
-  writeCsv(outPath, rowsForCsv, headers);
+  appendCsv(outPath, rowsForCsv, headers);
 
   console.log(`✅ Wrote CSV: ${outPath}`);
   console.log("Open data/jobs.csv to review. Mark approved=true to apply later.");
