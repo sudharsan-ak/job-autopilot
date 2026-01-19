@@ -6,7 +6,7 @@
   "scripts": {
     "auth:linkedin": "ts-node src/cli/authLinkedIn.ts",
     "collect:linkedin": "ts-node src/cli/collectLinkedIn.ts",
-    "apply:batch": "ts-node src/cli/applyBatch.ts"
+    "apply:batch": "ts-node src/cli/applyBatch_windows.ts"
   },
   "keywords": [],
   "author": "",
