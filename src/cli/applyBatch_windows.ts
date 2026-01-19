@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { loadProfile } from "../utils/config";
 import { readCsv } from "../utils/csv";
-import { autofillAshby } from "../apply/ashby";
+import { autofillAshby } from "../apply/ashby_windows";
 
 function isTrue(v: string | undefined) {
   return (v ?? "").trim().toLowerCase() === "true";
