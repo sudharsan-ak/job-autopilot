@@ -9,8 +9,6 @@ npm run frontend:jobs
 # Run the software job
 npm run software:jobs
 
-# Run the general job
-npm run general:jobs
 
 # Run the apply batch
 npm run apply:batch:mac
