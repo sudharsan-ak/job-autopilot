@@ -79,6 +79,34 @@ async function uploadResumeIfPossible(page: Page, resumePdfPath: string) {
   return false;
 }
 
+async function readFirstVisibleValue(page: Page, selectors: string[]): Promise<string> {
+  for (const sel of selectors) {
+    const loc = page.locator(sel).first();
+    try {
+      if (await loc.isVisible({ timeout: 1200 })) {
+        const val = await loc.inputValue().catch(() => "");
+        if (typeof val === "string") return val.trim();
+      }
+    } catch {}
+  }
+  return "";
+}
+
+/**
+ * Detect "ALL CAPS NAME" (allow spaces, hyphens, apostrophes, dots).
+ * Require at least 2 words to avoid matching IDs.
+ */
+function looksAllCapsName(s: string) {
+  const t = (s || "").trim();
+  if (!t) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length < 2) return false;
+  if (/[a-z]/.test(t)) return false;
+  if (!/[A-Z]/.test(t)) return false;
+  if (!/^[A-Z\s.'-]+$/.test(t)) return false;
+  return true;
+}
+
 /**
  * Strictly find a question "block" around a question text.
  * We still use ancestors, but we DO NOT pick the first input anymore.
@@ -629,6 +657,19 @@ export async function autofillAshby(page: Page, profile: Profile) {
     await selectByVisibleOptionAnywhere(page, profile.eeo.hispanicOrLatino);
     await selectByVisibleOptionAnywhere(page, profile.eeo.veteranStatus);
     await selectByVisibleOptionAnywhere(page, profile.eeo.disabilityStatus);
+  }
+
+  // Re-check name after resume upload/auto-population to undo ALL CAPS.
+  const nameSelectors = [
+    "input[autocomplete='name']",
+    "input[name='name']",
+    "input[placeholder*='Name' i]",
+    "input[id*='name' i]"
+  ];
+  const existingName = await readFirstVisibleValue(page, nameSelectors);
+  if (looksAllCapsName(existingName) && profile.fullName) {
+    console.log(`[Ashby] fixing ALL CAPS name "${existingName}" -> "${profile.fullName}"`);
+    await fillFirstVisible(page, nameSelectors, profile.fullName);
   }
 
   console.log("[Ashby] autofill completed (best-effort).");
