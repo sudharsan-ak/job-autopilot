@@ -2,9 +2,12 @@ import { chromium, Page, BrowserContext } from "playwright";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import * as readline from "readline";
 import { loadProfile } from "../utils/config";
 import { readCsv } from "../utils/csv";
 import { autofillAshby } from "../apply/ashby_mac";
+import { autofillGreenhouse } from "../apply/greenhouse";
+import { autofillLever } from "../apply/lever";
 
 function isTrue(v: string | undefined) {
   return (v ?? "").trim().toLowerCase() === "true";
@@ -93,7 +96,7 @@ async function tryClickExternalApply(page: Page) {
  * After clicking Apply, LinkedIn often opens ATS in a NEW TAB.
  * This helper returns the page that likely contains the ATS.
  */
-async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): Promise<Page> {
+async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): Promise<Page | null> {
   const before = liPage.url();
 
   // Watch for a new tab after click
@@ -101,7 +104,7 @@ async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): 
 
   const clicked = await tryClickExternalApply(liPage);
 
-  if (!clicked) return liPage;
+  if (!clicked) return null;
 
   // If a popup opened, use it
   const popup = await popupPromise;
@@ -127,8 +130,110 @@ async function clickApplyAndFindAtsPage(context: BrowserContext, liPage: Page): 
   return liPage;
 }
 
+function setupControls() {
+  let paused = false;
+  let stopped = false;
+  let inputLocked = false;
+  let pauseMessageShown = false;
+
+  readline.emitKeypressEvents(process.stdin);
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+  }
+
+  process.stdin.on("keypress", (_str, key) => {
+    if (inputLocked) return;
+    if (key?.name === "c" && key.ctrl) {
+      stopped = true;
+      return;
+    }
+
+    if (key?.name === "return") {
+      paused = !paused;
+      if (paused) {
+        console.log("⏸️  Pause requested. Will pause after current step.");
+        pauseMessageShown = false;
+      } else {
+        console.log("▶️  Resumed.");
+      }
+      return;
+    }
+
+    const name = (key?.name || "").toLowerCase();
+    if (name === "p") {
+      paused = true;
+      console.log("⏸️  Pause requested. Will pause after current step.");
+      pauseMessageShown = false;
+    } else if (name === "r") {
+      paused = false;
+      console.log("▶️  Resumed.");
+    } else if (name === "s" || name === "q") {
+      stopped = true;
+      console.log("🛑 Stop requested. Finishing current step...");
+      inputLocked = true;
+    }
+  });
+
+  const waitIfPaused = async () => {
+    while (paused && !stopped) {
+      if (!pauseMessageShown) {
+        console.log("⏸️  Paused. Press Enter or 'r' to resume, or 's' to stop.");
+        pauseMessageShown = true;
+      }
+      await new Promise((res) => setTimeout(res, 300));
+    }
+  };
+
+  return {
+    waitIfPaused,
+    isStopped: () => stopped,
+    lockInput: () => {
+      inputLocked = true;
+      if (process.stdin.isTTY) {
+        process.stdin.setRawMode(false);
+      }
+      process.stdin.pause();
+    }
+  };
+}
+
+type UnknownJob = { id: string; link: string };
+
+function readUnknownLinks(filePath: string): UnknownJob[] {
+  if (!fs.existsSync(filePath)) return [];
+  const raw = fs.readFileSync(filePath, "utf-8");
+  const match = raw.match(/export const unknownJobs\\s*=\\s*(\\[[\\s\\S]*\\]);/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((v) => v as Partial<UnknownJob>)
+        .filter((v) => typeof v.link === "string")
+        .map((v) => ({ id: String(v.id ?? ""), link: String(v.link) }));
+    }
+  } catch {}
+  return [];
+}
+
+function mergeUnknownLinks(existing: UnknownJob[], incoming: UnknownJob[]): UnknownJob[] {
+  const seen = new Set(existing.map((v) => v.link));
+  const merged = [...existing];
+  for (const item of incoming) {
+    if (!seen.has(item.link)) {
+      seen.add(item.link);
+      merged.push(item);
+    }
+  }
+  return merged;
+}
+
 async function main() {
   const profile = loadProfile();
+  let ashbyCount = 0;
+  let greenhouseCount = 0;
+  let leverCount = 0;
+  const unknownLinks: UnknownJob[] = [];
 
   const jobsPath = path.join(process.cwd(), "data", "jobs.csv");
   if (!fs.existsSync(jobsPath)) throw new Error(`Missing CSV: ${jobsPath}`);
@@ -141,7 +246,10 @@ async function main() {
     process.exit(0);
   }
 
-  const storagePath = path.join(process.cwd(), "storage", "linkedin.json");
+  const combinedPath = path.join(process.cwd(), "storage", "combined.json");
+  const storagePath = fs.existsSync(combinedPath)
+    ? combinedPath
+    : path.join(process.cwd(), "storage", "linkedin.json");
   if (!fs.existsSync(storagePath)) {
     throw new Error(`LinkedIn session not found. Run: npm run auth:linkedin`);
   }
@@ -152,25 +260,50 @@ async function main() {
   console.log(`Approved jobs: ${approved.length}`);
   console.log("Step 2 flow: open each job in a NEW TAB -> click Apply -> switch to ATS tab if it opens -> autofill -> wait 2s -> continue.");
   console.log("NOTE: We DO NOT close previous tabs.\n");
+  console.log("Controls: Enter or 'p' to pause/resume, 'r' to resume, 's' or 'q' to stop.\n");
+
+  const controls = setupControls();
 
   for (const job of approved) {
+    if (controls.isStopped()) break;
+    await controls.waitIfPaused();
+
     const link = job.link;
     const title = job.title || "";
     const company = job.company || "";
+    const jobId = job.id || "";
 
     console.log("\n===============================================");
-    console.log(`Opening LinkedIn job: ${title}${company ? ` @ ${company}` : ""}`);
+    const label = jobId ? `${jobId}. ${title}` : title;
+    console.log(`Opening LinkedIn job: ${label}${company ? ` @ ${company}` : ""}`);
     console.log(link);
     console.log("===============================================\n");
 
     // ✅ NEW TAB for the LinkedIn job (keeps previous app tabs open)
     const liPage = await context.newPage();
 
-    await liPage.goto(link, { waitUntil: "domcontentloaded" });
-    await liPage.waitForTimeout(1500);
+    try {
+      await liPage.goto(link, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await liPage.waitForTimeout(1500);
+    } catch {
+      console.log("❌ Timed out loading job page. Skipping this job.\n");
+      unknownLinks.push({ id: jobId || "", link });
+      await liPage.close().catch(() => {});
+      continue;
+    }
+    if (controls.isStopped()) break;
+    await controls.waitIfPaused();
 
     // ✅ Click apply and get the ATS page (could be popup/new tab)
     const atsPage = await clickApplyAndFindAtsPage(context, liPage);
+    if (!atsPage) {
+      console.log("❌ Could not click Apply. Skipping this job.\n");
+      unknownLinks.push({ id: jobId || "", link });
+      await liPage.close().catch(() => {});
+      continue;
+    }
+    if (controls.isStopped()) break;
+    await controls.waitIfPaused();
 
     // Let the ATS page settle
     await atsPage.waitForTimeout(1500);
@@ -181,19 +314,16 @@ async function main() {
     console.log(`Landed on: ${landedUrl}`);
     console.log(`Detected platform: ${platform}`);
 
-    // If not ATS, close tabs and skip
+    // If not ATS, close LinkedIn tab and record link
     if (platform === "unknown") {
-      console.log("Not on Greenhouse/Lever/Ashby yet. Closing tabs and skipping this job.\n");
+      console.log("Not on Greenhouse/Lever/Ashby yet. Skipping this job.\n");
+      unknownLinks.push({ id: jobId || "", link });
       try {
         if (!atsPage.isClosed() && atsPage !== liPage) {
           await atsPage.close();
         }
       } catch {}
-      try {
-        if (!liPage.isClosed()) {
-          await liPage.close();
-        }
-      } catch {}
+      await liPage.close().catch(() => {});
       continue;
     }
 
@@ -201,29 +331,64 @@ async function main() {
     if (platform === "ashby") {
       console.log("Running Ashby autofill...");
       await autofillAshby(atsPage, profile);
+      ashbyCount += 1;
+      if (!liPage.isClosed() && liPage !== atsPage) {
+        await liPage.close().catch(() => {});
+      }
       // ✅ Step 2: wait 2 seconds then proceed (keep tabs open for Ashby)
       await atsPage.waitForTimeout(2000);
       console.log("✅ Finished this job (left tabs open). Moving to next...\n");
+    } else if (platform === "greenhouse") {
+      console.log("Running Greenhouse autofill...");
+      await autofillGreenhouse(atsPage, profile);
+      greenhouseCount += 1;
+      await atsPage.waitForTimeout(2000);
+      if (!liPage.isClosed() && liPage !== atsPage) {
+        await liPage.close().catch(() => {});
+      }
+      if (!liPage.isClosed() && liPage !== atsPage) {
+        await liPage.close().catch(() => {});
+      }
+      console.log("ƒo. Finished this job (left tabs open). Moving to next...\n");
+    } else if (platform === "lever") {
+      console.log("Running Lever autofill...");
+      await autofillLever(atsPage, profile);
+      leverCount += 1;
+      await atsPage.waitForTimeout(2000);
+      if (!liPage.isClosed() && liPage !== atsPage) {
+        await liPage.close().catch(() => {});
+      }
+      console.log("ƒo. Finished this job (left tabs open). Moving to next...\n");
     } else {
-      // For non-Ashby platforms (lever, greenhouse), close both tabs
-      console.log(`${platform === "lever" ? "Lever" : "Greenhouse"} detected (autofill not added yet). Closing tabs.\n`);
+      // For unsupported platforms, close tabs and record link
+      console.log("Unsupported platform detected. Skipping this job.\n");
+      unknownLinks.push({ id: jobId || "", link });
       try {
         if (!atsPage.isClosed() && atsPage !== liPage) {
           await atsPage.close();
-          console.log("  → Closed ATS tab");
         }
       } catch {}
-      try {
-        if (!liPage.isClosed()) {
-          await liPage.close();
-          console.log("  → Closed LinkedIn job tab");
-        }
-      } catch {}
-      console.log("✅ Closed tabs and moving to next job...\n");
+      await liPage.close().catch(() => {});
     }
+
+    if (controls.isStopped()) break;
+    await controls.waitIfPaused();
+  }
+
+  if (controls.isStopped()) {
+    controls.lockInput();
   }
 
   console.log("✅ Step 2 complete: processed all approved jobs (tabs left open).");
+  console.log(`Ashby opened: ${ashbyCount} | Greenhouse opened: ${greenhouseCount} | Lever opened: ${leverCount}`);
+  const unknownOutPath = path.join(process.cwd(), "unknownJobs.js");
+  const existingUnknown = readUnknownLinks(unknownOutPath);
+  const mergedUnknown = mergeUnknownLinks(existingUnknown, unknownLinks);
+  const unknownLines = mergedUnknown.map((item) => JSON.stringify(item)).join(",\n");
+  const unknownPayload = `export const unknownJobs = [\n${unknownLines}\n];\n`;
+  fs.writeFileSync(unknownOutPath, unknownPayload, "utf-8");
+  console.log(`${mergedUnknown.length} Unknown job links saved to: ${unknownOutPath}`);
+  controls.lockInput();
   // Not closing browser in Step 2 yet. Step 3 will finalize "keep open".
 }
 
@@ -231,3 +396,6 @@ main().catch((err) => {
   console.error("❌ apply:batch failed:", err);
   process.exit(1);
 });
+
+
+

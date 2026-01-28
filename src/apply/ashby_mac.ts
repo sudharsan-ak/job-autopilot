@@ -92,6 +92,28 @@ async function readFirstVisibleValue(page: Page, selectors: string[]): Promise<s
   return "";
 }
 
+function shouldFill(existing: string) {
+  return !existing || existing.trim().length === 0;
+}
+
+function normalizeYesNo(value: string | undefined, fallback: "Yes" | "No"): "Yes" | "No" {
+  if (!value) return fallback;
+  const v = value.toString().trim().toLowerCase();
+  if (v.startsWith("y")) return "Yes";
+  if (v.startsWith("n")) return "No";
+  return fallback;
+}
+
+function getFirstLastName(profile: Profile): { first: string; last: string } {
+  if (profile.firstName || profile.lastName) {
+    return { first: profile.firstName ?? "", last: profile.lastName ?? "" };
+  }
+  const parts = (profile.fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "", last: "" };
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
 /**
  * Detect "ALL CAPS NAME" (allow spaces, hyphens, apostrophes, dots).
  * Require at least 2 words to avoid matching IDs.
@@ -218,8 +240,11 @@ async function getRadioQuestionBlock(page: Page, questionText: string): Promise<
 async function answerYesNo(page: Page, questionText: string, answer: "Yes" | "No") {
   const block = await getYesNoQuestionBlock(page, questionText);
   if (!block) {
-    console.log(`[Ashby] Could not find Yes/No block for question: "${questionText}"`);
-    return false;
+    const radioOk = await selectRadioOption(page, questionText, answer);
+    if (!radioOk) {
+      console.log(`[Ashby] Could not find Yes/No block for question: "${questionText}"`);
+    }
+    return radioOk;
   }
 
   // Find both buttons
@@ -410,26 +435,29 @@ async function fillComboboxForQuestion(page: Page, questionText: string, value: 
  * EEO/tile selections where options are explicit on screen.
  * Not used for combobox questions.
  */
-async function selectByVisibleOptionAnywhere(page: Page, optionText: string) {
-  if (!optionText) return false;
+async function selectByVisibleOptionAnywhere(page: Page, optionText: string | string[]) {
+  const options = Array.isArray(optionText) ? optionText : [optionText];
+  for (const opt of options) {
+    if (!opt) continue;
 
-  const exact = page.getByText(new RegExp(`^${escapeRegex(optionText)}$`, "i")).first();
-  try {
-    if (await exact.isVisible({ timeout: 1500 })) {
-      await exact.scrollIntoViewIfNeeded().catch(() => {});
-      await exact.click();
-      return true;
-    }
-  } catch {}
+    const exact = page.getByText(new RegExp(`^${escapeRegex(opt)}$`, "i")).first();
+    try {
+      if (await exact.isVisible({ timeout: 1500 })) {
+        await exact.scrollIntoViewIfNeeded().catch(() => {});
+        await exact.click();
+        return true;
+      }
+    } catch {}
 
-  const contains = page.getByText(new RegExp(escapeRegex(optionText), "i")).first();
-  try {
-    if (await contains.isVisible({ timeout: 1500 })) {
-      await contains.scrollIntoViewIfNeeded().catch(() => {});
-      await contains.click();
-      return true;
-    }
-  } catch {}
+    const contains = page.getByText(new RegExp(escapeRegex(opt), "i")).first();
+    try {
+      if (await contains.isVisible({ timeout: 1500 })) {
+        await contains.scrollIntoViewIfNeeded().catch(() => {});
+        await contains.click();
+        return true;
+      }
+    } catch {}
+  }
 
   return false;
 }
@@ -462,12 +490,36 @@ export async function autofillAshby(page: Page, profile: Profile) {
   const isMac = os.platform() === "darwin";
   
   console.log(`[Ashby] Filling name: ${profile.fullName}`);
+  const { first, last } = getFirstLastName(profile);
+  const firstNameSelectors = [
+    "input[autocomplete='given-name']",
+    "input[name*='first' i]",
+    "input[placeholder*='First' i]",
+    "input[id*='first' i]"
+  ];
+  const lastNameSelectors = [
+    "input[autocomplete='family-name']",
+    "input[name*='last' i]",
+    "input[placeholder*='Last' i]",
+    "input[id*='last' i]"
+  ];
+  const existingFirst = await readFirstVisibleValue(page, firstNameSelectors);
+  const existingLast = await readFirstVisibleValue(page, lastNameSelectors);
+
   const nameFilled = await fillFirstVisible(
     page,
     ["input[autocomplete='name']", "input[name='name']", "input[placeholder*='Name' i]", "input[id*='name' i]"],
     profile.fullName
   );
   console.log(`[Ashby] Name filled: ${nameFilled}`);
+
+  if (shouldFill(existingFirst)) {
+    await fillFirstVisible(page, firstNameSelectors, first);
+  }
+
+  if (shouldFill(existingLast)) {
+    await fillFirstVisible(page, lastNameSelectors, last);
+  }
   
   console.log(`[Ashby] Filling email: ${profile.email}`);
   const emailFilled = await fillFirstVisible(
@@ -575,17 +627,23 @@ export async function autofillAshby(page: Page, profile: Profile) {
   }
 
   // 6) Yes/No questions
-
-  const authYesNo = (profile.workAuthorization?.authorizedToWorkInUS || profile.defaults?.authorizedToWork || "Yes") as "Yes" | "No";
-  const sponsorNow = (profile.sponsorship?.requiresSponsorshipNow || profile.defaults?.needsSponsorship || "Yes") as "Yes" | "No";
-  const sponsorFuture = (profile.sponsorship?.requiresSponsorshipInFuture ||
-    profile.defaults?.willNowOrInFutureRequireSponsorship ||
-    "Yes") as "Yes" | "No";
+  const authYesNo = normalizeYesNo(
+    profile.workAuthorization?.authorizedToWorkInUS ?? profile.defaults?.authorizedToWork,
+    "Yes"
+  );
+  const sponsorNow = normalizeYesNo(profile.sponsorship?.requiresSponsorshipNow ?? profile.defaults?.needsSponsorship, "Yes");
+  const sponsorFuture = normalizeYesNo(
+    profile.sponsorship?.requiresSponsorshipInFuture ?? profile.defaults?.willNowOrInFutureRequireSponsorship,
+    "Yes"
+  );
+  const veteranYesNo = normalizeYesNo(profile.veteran ?? profile.eeo?.veteranStatus, "No");
 
   await answerYesNo(page, "Are you authorized to work", authYesNo);
   await answerYesNo(page, "authorized to work", authYesNo);
   await answerYesNo(page, "Do you require sponsorship", sponsorNow);
   await answerYesNo(page, "Will you now or in the future require sponsorship", sponsorFuture);
+  await answerYesNo(page, "Do you identify as a veteran", veteranYesNo);
+  await answerYesNo(page, "Are you a veteran", veteranYesNo);
 
   // Willing to relocate/commute
   const pref = profile.preferences?.willingToRelocateOrCommute ?? "Yes";

@@ -150,19 +150,44 @@ function appendCsv(filePath: string, rows: Record<string, string>[], headers: st
 async function autoScroll(page: any, times: number) {
   for (let i = 0; i < times; i++) {
     const didScroll = await page.evaluate(() => {
-      const scrollCandidates = [
-        "div.jobs-search-results-list",
-        "div.scaffold-layout__list",
-        "ul.jobs-search__results-list"
-      ];
+      const isScrollable = (el: HTMLElement | null) => {
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        const overflow = style.overflowY || style.overflow;
+        return (overflow === "auto" || overflow === "scroll") && el.scrollHeight > el.clientHeight;
+      };
 
-      for (const sel of scrollCandidates) {
-        const el = document.querySelector(sel) as HTMLElement | null;
-        if (!el) continue;
-        if (el.scrollHeight <= el.clientHeight) continue;
-        const before = el.scrollTop;
-        el.scrollTop = before + el.clientHeight * 0.9;
-        return el.scrollTop !== before;
+      const findScrollableParent = (el: HTMLElement | null) => {
+        let cur = el?.parentElement ?? null;
+        while (cur) {
+          if (isScrollable(cur)) return cur;
+          cur = cur.parentElement;
+        }
+        return null;
+      };
+
+      const card =
+        (document.querySelector("li.jobs-search-results__list-item") as HTMLElement | null) ||
+        (document.querySelector("li.jobs-search__results-list-item") as HTMLElement | null) ||
+        (document.querySelector("div.job-card-container") as HTMLElement | null) ||
+        (document.querySelector("li[data-occludable-job-id]") as HTMLElement | null);
+
+      let target = findScrollableParent(card);
+
+      if (!target) {
+        const list =
+          (document.querySelector("ul.jobs-search__results-list") as HTMLElement | null) ||
+          (document.querySelector("div.jobs-search-results-list") as HTMLElement | null) ||
+          (document.querySelector("div.jobs-search__results-list") as HTMLElement | null) ||
+          (document.querySelector("div.scaffold-layout__list") as HTMLElement | null) ||
+          (document.querySelector("div.scaffold-layout__list-container") as HTMLElement | null);
+        target = findScrollableParent(list);
+      }
+
+      if (target && target.scrollHeight > target.clientHeight) {
+        const before = target.scrollTop;
+        target.scrollTop = before + target.clientHeight * 0.9;
+        return target.scrollTop !== before;
       }
 
       const before = window.scrollY;
@@ -173,7 +198,7 @@ async function autoScroll(page: any, times: number) {
     if (!didScroll) {
       await page.mouse.wheel(0, 1200);
     }
-    await page.waitForTimeout(900);
+    await page.waitForTimeout(500);
   }
 }
 
@@ -199,18 +224,26 @@ async function extractJobs(page: any): Promise<JobRow[]> {
     const isEasyApply = (card: Element | null | undefined) => {
       if (!card) return false;
 
-      const label =
-        (card.querySelector("[aria-label*='Easy Apply' i]") as HTMLElement | null)?.innerText ?? "";
-      if (/easy apply/i.test(label)) return true;
+      const selectors = [
+        "[aria-label*='Easy Apply' i]",
+        "button[aria-label*='Easy Apply' i]",
+        "a[aria-label*='Easy Apply' i]",
+        ".job-card-container__apply-method",
+        ".job-card-list__apply-method",
+        ".job-card-container__footer-item",
+        ".job-card-container__footer-items",
+        ".job-card-list__footer",
+        ".job-card-container__metadata-item",
+        ".job-card-container__metadata-wrapper"
+      ];
 
-      const badge =
-        (card.querySelector(".job-card-container__apply-method, .job-card-list__apply-method") as
-          | HTMLElement
-          | null)?.innerText ?? "";
-      if (/easy apply/i.test(badge)) return true;
+      const nodes = card.querySelectorAll(selectors.join(","));
+      for (const node of nodes) {
+        const text = (node as HTMLElement).innerText ?? "";
+        if (/easy apply/i.test(text)) return true;
+      }
 
-      const cardText = (card as HTMLElement).innerText ?? "";
-      return /easy apply/i.test(cardText);
+      return false;
     };
 
     for (const a of anchors) {
@@ -241,6 +274,10 @@ async function extractJobs(page: any): Promise<JobRow[]> {
       const company =
         text(card?.querySelector(".job-card-container__primary-description")) ||
         text(card?.querySelector(".job-card-container__company-name")) ||
+        text(card?.querySelector("span.job-card-container__company-name")) ||
+        text(card?.querySelector("a.job-card-container__company-name")) ||
+        text(card?.querySelector(".job-card-container__subtitle")) ||
+        text(card?.querySelector(".artdeco-entity-lockup__subtitle")) ||
         text(card?.querySelector("h4")) ||
         "";
 
@@ -273,7 +310,7 @@ async function main() {
   loadProfile();
 
   const countStr = getArg("count") ?? "10";
-  const count = Math.max(1, Math.min(50, parseInt(countStr, 10) || 10));
+  const count = Math.max(1, parseInt(countStr, 10) || 10);
 
   const rawUrl =
     getArg("url") ??
@@ -290,7 +327,7 @@ async function main() {
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
 
   console.log("Launching browser...");
-  const browser = await chromium.launch({ headless: false, slowMo: 30 });
+  const browser = await chromium.launch({ headless: false, slowMo: 10 });
   const context = await browser.newContext({ storageState: storagePath });
   const page = await context.newPage();
 
@@ -335,9 +372,9 @@ async function main() {
   }
 
   const maxScrolls = 60;
-  const initialScrolls = 18;
+  const initialScrolls = 10;
   const scrollChunk = 3;
-  const maxPages = 10;
+  const maxPages = 50;
   const pageSize = 25;
   const headers = ["id", "source", "title", "company", "location", "link", "approved", "notes"];
   const existingLinks = getExistingLinks(outPath, headers);
@@ -388,6 +425,7 @@ async function main() {
   if (baseUrl === null) {
     console.log("Skipping pagination: URL could not be parsed.");
   } else {
+    let zeroGainPages = 0;
     for (let pageIndex = 1; jobs.length < count && pageIndex < maxPages; pageIndex++) {
       const pageUrl = new URL(baseUrl.toString());
       pageUrl.searchParams.set("start", String(pageIndex * pageSize));
@@ -428,7 +466,17 @@ async function main() {
         console.log("We will still attempt to scrape /jobs/view links from the page.");
       }
 
+      const beforePage = jobs.length;
       await collectFromCurrentPage(`page ${pageIndex + 1}`);
+      if (jobs.length === beforePage) {
+        zeroGainPages += 1;
+      } else {
+        zeroGainPages = 0;
+      }
+      if (zeroGainPages >= 10) {
+        console.log("No new jobs found for 10 pages. Stopping pagination.");
+        break;
+      }
     }
   }
 

@@ -86,6 +86,24 @@ function shouldFill(existing: string) {
   return !existing || existing.trim().length === 0;
 }
 
+function normalizeYesNo(value: string | undefined, fallback: "Yes" | "No"): "Yes" | "No" {
+  if (!value) return fallback;
+  const v = value.toString().trim().toLowerCase();
+  if (v.startsWith("y")) return "Yes";
+  if (v.startsWith("n")) return "No";
+  return fallback;
+}
+
+function getFirstLastName(profile: Profile): { first: string; last: string } {
+  if (profile.firstName || profile.lastName) {
+    return { first: profile.firstName ?? "", last: profile.lastName ?? "" };
+  }
+  const parts = (profile.fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { first: "", last: "" };
+  if (parts.length === 1) return { first: parts[0], last: "" };
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
+
 /**
  * Detect "ALL CAPS NAME" (allow spaces, hyphens, apostrophes, dots).
  * We want to avoid treating emails/ids as names, so require at least 2 words.
@@ -223,7 +241,9 @@ async function getRadioQuestionBlock(page: Page, questionText: string): Promise<
 
 async function answerYesNo(page: Page, questionText: string, answer: "Yes" | "No") {
   const block = await getYesNoQuestionBlock(page, questionText);
-  if (!block) return false;
+  if (!block) {
+    return selectRadioOption(page, questionText, answer);
+  }
 
   const btn = block.locator(`button:has-text("${answer}")`).first();
   try {
@@ -308,26 +328,29 @@ async function fillComboboxForQuestion(page: Page, questionText: string, value: 
   return false;
 }
 
-async function selectByVisibleOptionAnywhere(page: Page, optionText: string) {
-  if (!optionText) return false;
+async function selectByVisibleOptionAnywhere(page: Page, optionText: string | string[]) {
+  const options = Array.isArray(optionText) ? optionText : [optionText];
+  for (const opt of options) {
+    if (!opt) continue;
 
-  const exact = page.getByText(new RegExp(`^${escapeRegex(optionText)}$`, "i")).first();
-  try {
-    if (await exact.isVisible({ timeout: 1500 })) {
-      await exact.scrollIntoViewIfNeeded().catch(() => {});
-      await exact.click();
-      return true;
-    }
-  } catch {}
+    const exact = page.getByText(new RegExp(`^${escapeRegex(opt)}$`, "i")).first();
+    try {
+      if (await exact.isVisible({ timeout: 1500 })) {
+        await exact.scrollIntoViewIfNeeded().catch(() => {});
+        await exact.click();
+        return true;
+      }
+    } catch {}
 
-  const contains = page.getByText(new RegExp(escapeRegex(optionText), "i")).first();
-  try {
-    if (await contains.isVisible({ timeout: 1500 })) {
-      await contains.scrollIntoViewIfNeeded().catch(() => {});
-      await contains.click();
-      return true;
-    }
-  } catch {}
+    const contains = page.getByText(new RegExp(escapeRegex(opt), "i")).first();
+    try {
+      if (await contains.isVisible({ timeout: 1500 })) {
+        await contains.scrollIntoViewIfNeeded().catch(() => {});
+        await contains.click();
+        return true;
+      }
+    } catch {}
+  }
 
   return false;
 }
@@ -360,12 +383,28 @@ export async function autofillAshby(page: Page, profile: Profile) {
   if (uploaded) await page.waitForTimeout(2200);
 
   const nameSelectors = ["input[autocomplete='name']", "input[name='name']", "input[placeholder*='Name' i]"];
+  const firstNameSelectors = [
+    "input[autocomplete='given-name']",
+    "input[name*='first' i]",
+    "input[placeholder*='First' i]",
+    "input[id*='first' i]"
+  ];
+  const lastNameSelectors = [
+    "input[autocomplete='family-name']",
+    "input[name*='last' i]",
+    "input[placeholder*='Last' i]",
+    "input[id*='last' i]"
+  ];
   const emailSelectors = ["input[type='email']", "input[autocomplete='email']", "input[name='email']"];
   const phoneSelectors = ["input[type='tel']", "input[autocomplete='tel']", "input[name='phone']"];
 
   const existingName = await readFirstVisibleValue(page, nameSelectors);
+  const existingFirst = await readFirstVisibleValue(page, firstNameSelectors);
+  const existingLast = await readFirstVisibleValue(page, lastNameSelectors);
   const existingEmail = await readFirstVisibleValue(page, emailSelectors);
   const existingPhone = await readFirstVisibleValue(page, phoneSelectors);
+
+  const { first, last } = getFirstLastName(profile);
 
   // ✅ If Ashby filled ALL CAPS name, fix casing to proper-case
   if (looksAllCapsName(existingName)) {
@@ -376,6 +415,14 @@ export async function autofillAshby(page: Page, profile: Profile) {
     await fillFirstVisible(page, nameSelectors, profile.fullName);
   } else {
     console.log(`[Ashby] keeping name: "${existingName}"`);
+  }
+
+  if (shouldFill(existingFirst)) {
+    await fillFirstVisible(page, firstNameSelectors, first);
+  }
+
+  if (shouldFill(existingLast)) {
+    await fillFirstVisible(page, lastNameSelectors, last);
   }
 
   if (shouldFill(existingEmail)) {
@@ -405,16 +452,23 @@ export async function autofillAshby(page: Page, profile: Profile) {
   }
 
   // Yes/No questions
-  const authYesNo = (profile.workAuthorization?.authorizedToWorkInUS || profile.defaults?.authorizedToWork || "Yes") as "Yes" | "No";
-  const sponsorNow = (profile.sponsorship?.requiresSponsorshipNow || profile.defaults?.needsSponsorship || "Yes") as "Yes" | "No";
-  const sponsorFuture = (profile.sponsorship?.requiresSponsorshipInFuture ||
-    profile.defaults?.willNowOrInFutureRequireSponsorship ||
-    "Yes") as "Yes" | "No";
+  const authYesNo = normalizeYesNo(
+    profile.workAuthorization?.authorizedToWorkInUS ?? profile.defaults?.authorizedToWork,
+    "Yes"
+  );
+  const sponsorNow = normalizeYesNo(profile.sponsorship?.requiresSponsorshipNow ?? profile.defaults?.needsSponsorship, "Yes");
+  const sponsorFuture = normalizeYesNo(
+    profile.sponsorship?.requiresSponsorshipInFuture ?? profile.defaults?.willNowOrInFutureRequireSponsorship,
+    "Yes"
+  );
+  const veteranYesNo = normalizeYesNo(profile.veteran ?? profile.eeo?.veteranStatus, "No");
 
   await answerYesNo(page, "Are you authorized to work", authYesNo);
   await answerYesNo(page, "authorized to work", authYesNo);
   await answerYesNo(page, "Do you require sponsorship", sponsorNow);
   await answerYesNo(page, "Will you now or in the future require sponsorship", sponsorFuture);
+  await answerYesNo(page, "Do you identify as a veteran", veteranYesNo);
+  await answerYesNo(page, "Are you a veteran", veteranYesNo);
 
   const pref = profile.preferences?.willingToRelocateOrCommute ?? "Yes";
   const prefAns: "Yes" | "No" = pref.toLowerCase().startsWith("y") ? "Yes" : "No";

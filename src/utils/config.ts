@@ -6,7 +6,10 @@ export type Profile = {
   eeo: any;
   sponsorship: any;
   workAuthorization: any;
+  veteran?: string;
   fullName: string;
+  firstName?: string;
+  lastName?: string;
   email: string;
   phone: string;
   location: string;
@@ -19,6 +22,7 @@ export type Profile = {
 
   keywords: string[];
   avoidPhrases: string[];
+  experienceThreshold?: number;
 
   defaults: {
     willNowOrInFutureRequireSponsorship: any;
