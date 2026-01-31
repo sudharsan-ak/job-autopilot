@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Unknown Jobs Review</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+      h1 { margin: 0 0 12px; font-size: 20px; }
+      .meta { margin-bottom: 16px; color: #666; }
+      .job { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 10px; display: flex; gap: 12px; align-items: center; }
+      .job-info { flex: 1; min-width: 0; }
+      .job-id { font-weight: 700; margin-right: 8px; }
+      .job-link { color: #0b57d0; text-decoration: none; word-break: break-all; }
+      .actions { display: flex; gap: 8px; }
+      .bulk { display: flex; align-items: center; gap: 12px; margin: 12px 0 18px; }
+      .hidden { display: none; }
+      .select-all { display: inline-flex; align-items: center; gap: 6px; color: #333; }
+      .selector { margin-right: 6px; }
+      button { padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; }
+      button.approve { background: #e8f5e9; border-color: #c8e6c9; }
+      button.reject { background: #ffebee; border-color: #ffcdd2; }
+      .empty { color: #666; padding: 16px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Unknown Jobs Review</h1>
+    <div class="meta">Click link to open, then approve or reject.</div>
+    <div class="bulk hidden" id="bulkBar">
+      <label class="select-all">
+        <input id="selectAll" type="checkbox" />
+        Select all
+      </label>
+      <button id="bulkApprove" class="approve">Approve selected</button>
+      <button id="bulkReject" class="reject">Reject selected</button>
+    </div>
+    <div id="list"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>

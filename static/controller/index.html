@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Job Autopilot Controller</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; color: #222; }
+      h1 { margin: 0 0 12px; font-size: 20px; }
+      .grid { display: grid; gap: 12px; }
+      .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; }
+      label { display: block; margin-bottom: 6px; font-weight: 600; }
+      input[type="text"], input[type="number"] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
+      .row { display: grid; grid-template-columns: 1fr 120px; gap: 10px; }
+      .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+      button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; cursor: pointer; }
+      button.primary { background: #e3f2fd; border-color: #bbdefb; }
+      button.warn { background: #fff3e0; border-color: #ffe0b2; }
+      button.danger { background: #ffebee; border-color: #ffcdd2; }
+      button.success { background: #e8f5e9; border-color: #c8e6c9; }
+      .log { height: 320px; overflow: auto; background: #111; color: #e6e6e6; padding: 10px; border-radius: 8px; font-family: Consolas, monospace; font-size: 12px; }
+      .status { margin-top: 8px; color: #555; }
+      @media (min-width: 720px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+        .log { height: 420px; }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Job Autopilot Controller</h1>
+    <div class="grid">
+      <div class="card">
+        <label for="url">LinkedIn URL</label>
+        <input id="url" type="text" placeholder="Paste LinkedIn search URL..." />
+        <div class="row" style="margin-top: 10px;">
+          <div>
+            <label for="count">Count</label>
+            <input id="count" type="number" min="1" value="20" />
+          </div>
+          <div style="display:flex; align-items:flex-end;">
+            <button id="collectBtn" class="primary">Collect</button>
+          </div>
+        </div>
+        <div class="actions" style="margin-top: 12px;">
+          <button id="applyBtn" class="success" style="display:none;">Apply</button>
+          <button id="clearJobs" class="warn">Clear Jobs CSV</button>
+          <button id="clearUnknown" class="warn">Clear Unknown Jobs JSON</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="actions">
+          <button id="pauseBtn">Pause</button>
+          <button id="resumeBtn">Resume</button>
+          <button id="stopBtn" class="danger">Stop</button>
+          <button id="killBtn" class="danger">Kill (Ctrl+C)</button>
+        </div>
+        <div class="actions" style="margin-top: 8px;">
+          <button id="clearLog">Clear console</button>
+        </div>
+        <div class="status" id="status">Status: idle</div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

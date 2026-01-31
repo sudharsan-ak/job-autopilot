@@ -482,7 +482,36 @@ async function main() {
 
   console.log(`Raw extracted job links (non-Easy Apply): ${jobs.length}`);
 
-  const trimmed = jobs.slice(0, count);
+  const capByRoleAndCompany = (items: JobRow[], maxPerKey: number) => {
+    const counts = new Map<string, number>();
+    const out: JobRow[] = [];
+    const norm = (v: string) => v.toLowerCase().replace(/\s+/g, " ").trim();
+
+    for (const item of items) {
+      const title = norm(item.title || "");
+      const company = norm(item.company || "");
+      if (!title || !company) {
+        out.push(item);
+        continue;
+      }
+      const key = `${title}@@${company}`;
+      const next = (counts.get(key) ?? 0) + 1;
+      counts.set(key, next);
+      if (next <= maxPerKey) {
+        out.push(item);
+      }
+    }
+    return out;
+  };
+
+  const capped = capByRoleAndCompany(jobs, 2);
+  if (capped.length !== jobs.length) {
+    console.log(
+      `Skipped ${jobs.length - capped.length} duplicate role/company entries (kept up to 2 per role+company).`
+    );
+  }
+
+  const trimmed = capped.slice(0, count);
 
   console.log(`Using first ${trimmed.length} jobs (requested ${count}).`);
 
