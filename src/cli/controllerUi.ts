@@ -19,6 +19,7 @@ let child: ChildProcessWithoutNullStreams | null = null;
 let running = false;
 let runKind: RunKind = "idle";
 let lastCollectCompleted = false;
+let stopRequested = false;
 const logLines: string[] = [];
 const logClients: http.ServerResponse[] = [];
 let keepAwakeProc: ChildProcessWithoutNullStreams | null = null;
@@ -96,11 +97,20 @@ function startProcess(command: string, args: string[], kind: RunKind) {
 
   const exe = process.platform === "win32" ? "npm.cmd" : "npm";
   try {
-    child = spawn(exe, [command, ...args], { shell: false, cwd: process.cwd(), detached: true });
+    child = spawn(exe, [command, ...args], {
+      shell: false,
+      cwd: process.cwd(),
+      windowsHide: true
+    });
   } catch (err) {
     // Fallback: some Windows setups require shell execution to avoid EINVAL.
-    child = spawn(exe, [command, ...args], { shell: true, cwd: process.cwd(), detached: true });
+    child = spawn(exe, [command, ...args], {
+      shell: true,
+      cwd: process.cwd(),
+      windowsHide: true
+    });
   }
+  stopRequested = false;
   running = true;
   runKind = kind;
 
@@ -123,6 +133,7 @@ function startProcess(command: string, args: string[], kind: RunKind) {
     running = false;
     runKind = "idle";
     child = null;
+    stopRequested = false;
     if (kind === "collect") lastCollectCompleted = true;
   });
 
@@ -152,10 +163,20 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url === "/api/status") {
+    let hasJobs = false;
+    try {
+      if (fs.existsSync(jobsPath)) {
+        const content = fs.readFileSync(jobsPath, "utf8");
+        const lines = content.split(/\r?\n/).filter((l) => l.trim().length > 0);
+        hasJobs = lines.length > 1;
+      }
+    } catch {}
     return json(res, 200, {
       running,
       runKind,
-      lastCollectCompleted
+      lastCollectCompleted,
+      stopRequested,
+      hasJobs
     });
   }
 
@@ -229,7 +250,11 @@ const server = http.createServer((req, res) => {
       const action = payload.action;
       if (action === "pause") child.stdin.write("p\n");
       if (action === "resume") child.stdin.write("p\n");
-      if (action === "stop") child.stdin.write("s\n");
+      if (action === "stop") {
+        stopRequested = true;
+        pushLog("[controller] Stop requested. Waiting for current job to finish...");
+        child.stdin.write("s\n");
+      }
       if (action === "kill") {
         child.kill("SIGINT");
         setTimeout(() => {

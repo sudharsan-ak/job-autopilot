@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { exec } from "child_process";
 
-type UnknownJob = { id?: string | number; link: string };
+type UnknownJob = { id?: string | number; role?: string; link: string };
 
 const args = process.argv.slice(2);
 const countArg = args.find((arg) => arg.startsWith("--count="));
@@ -25,9 +25,10 @@ function parseUnknownJobs(contents: string): UnknownJob[] {
 
   for (const line of lines) {
     const idMatch = line.match(/"id"\s*:\s*"([^"]+)"/);
+    const roleMatch = line.match(/"role"\s*:\s*"([^"]+)"/);
     const linkMatch = line.match(/"link"\s*:\s*"([^"]+)"/);
     if (linkMatch) {
-      jobs.push({ id: idMatch?.[1], link: linkMatch[1] });
+      jobs.push({ id: idMatch?.[1], role: roleMatch?.[1], link: linkMatch[1] });
     }
   }
 

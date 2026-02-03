@@ -181,7 +181,7 @@ function setupControls() {
   };
 }
 
-type UnknownJob = { id: string; link: string };
+type UnknownJob = { id: string; role?: string; link: string };
 
 function readUnknownLinks(filePath: string): UnknownJob[] {
   if (!fs.existsSync(filePath)) return [];
@@ -194,22 +194,25 @@ function readUnknownLinks(filePath: string): UnknownJob[] {
       return parsed
         .map((v) => v as Partial<UnknownJob>)
         .filter((v) => typeof v.link === "string")
-        .map((v) => ({ id: String(v.id ?? ""), link: String(v.link) }));
+        .map((v) => ({ id: String(v.id ?? ""), role: v.role ? String(v.role) : undefined, link: String(v.link) }));
     }
   } catch {}
   return [];
 }
 
 function mergeUnknownLinks(existing: UnknownJob[], incoming: UnknownJob[]): UnknownJob[] {
-  const seen = new Set(existing.map((v) => v.link));
-  const merged = [...existing];
+  const byLink = new Map(existing.map((v) => [v.link, v]));
   for (const item of incoming) {
-    if (!seen.has(item.link)) {
-      seen.add(item.link);
-      merged.push(item);
+    const current = byLink.get(item.link);
+    if (!current) {
+      byLink.set(item.link, item);
+      continue;
+    }
+    if (!current.role && item.role) {
+      current.role = item.role;
     }
   }
-  return merged;
+  return Array.from(byLink.values());
 }
 
 async function main() {
@@ -311,7 +314,7 @@ async function main() {
     // (Keep ATS tab open only for Ashby; for others, we may keep for later, but user asked to skip non-ashby.)
     if (platform !== "ashby" && platform !== "greenhouse" && platform !== "lever") {
       console.log("Not Ashby/Greenhouse/Lever. Skipping this job.");
-      unknownLinks.push({ id: jobId || "", link });
+      unknownLinks.push({ id: jobId || "", role: title || "", link });
       if (atsPage !== liPage) {
         await atsPage.close().catch(() => {});
       }

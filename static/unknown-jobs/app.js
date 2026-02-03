@@ -62,14 +62,18 @@ function render(jobs) {
     id.className = "job-id";
     id.textContent = job.id ? `#${job.id}` : "#?";
 
+    const role = document.createElement("span");
+    role.textContent = job.role ? `${job.role} ` : "Unknown role ";
+
     const link = document.createElement("a");
     link.className = "job-link";
     link.href = job.link;
     link.target = "_blank";
     link.rel = "noreferrer";
-    link.textContent = job.link;
+    link.textContent = `(${job.link})`;
 
     info.appendChild(id);
+    info.appendChild(role);
     info.appendChild(link);
 
     const actions = document.createElement("div");

@@ -24,9 +24,15 @@ async function fetchStatus() {
 
 async function refreshStatus() {
   const s = await fetchStatus();
-  statusEl.textContent = `Status: ${s.runKind}${s.running ? " (running)" : " (idle)"}`;
-  if (!s.running && s.lastCollectCompleted) {
+  if (s.running && s.stopRequested) {
+    statusEl.textContent = `Status: ${s.runKind} (stopping...)`;
+  } else {
+    statusEl.textContent = `Status: ${s.runKind}${s.running ? " (running)" : " (idle)"}`;
+  }
+  if (!s.running && (s.lastCollectCompleted || s.hasJobs)) {
     applyBtn.style.display = "inline-block";
+  } else if (!s.running) {
+    applyBtn.style.display = "none";
   }
   if (s.running) {
     collectBtn.disabled = true;

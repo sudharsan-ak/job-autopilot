@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-type UnknownJob = { id?: string; link: string };
+type UnknownJob = { id?: string; role?: string; link: string };
 
 const PORT = 4545;
 const unknownPath = path.join(process.cwd(), "unknownJobs.js");
@@ -12,14 +12,26 @@ const indexPath = path.join(publicDir, "index.html");
 const appPath = path.join(publicDir, "app.js");
 
 function parseUnknownJobs(contents: string): UnknownJob[] {
+  const arrayMatch = contents.match(/export const unknownJobs\s*=\s*(\[[\s\S]*?\]);/);
+  if (arrayMatch) {
+    try {
+      const jsonLike = arrayMatch[1].replace(/,\s*]/g, "]");
+      const parsed = JSON.parse(jsonLike) as UnknownJob[];
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v) => typeof v?.link === "string");
+      }
+    } catch {}
+  }
+
   const lines = contents.split(/\r?\n/);
   const jobs: UnknownJob[] = [];
 
   for (const line of lines) {
     const idMatch = line.match(/"id"\s*:\s*"([^"]+)"/);
+    const roleMatch = line.match(/"role"\s*:\s*"([^"]+)"/);
     const linkMatch = line.match(/"link"\s*:\s*"([^"]+)"/);
     if (linkMatch) {
-      jobs.push({ id: idMatch?.[1], link: linkMatch[1] });
+      jobs.push({ id: idMatch?.[1], role: roleMatch?.[1], link: linkMatch[1] });
     }
   }
 
@@ -38,7 +50,9 @@ function loadUnknownJobs(): UnknownJob[] {
 }
 
 function writeUnknownJobs(jobs: UnknownJob[]) {
-  const lines = jobs.map((j) => `{ "id": "${j.id ?? ""}", "link": "${j.link}" },`);
+  const lines = jobs.map(
+    (j) => `{ "id": "${j.id ?? ""}", "role": "${j.role ?? ""}", "link": "${j.link}" },`
+  );
   const body = ["export const unknownJobs = [", ...lines, "];"].join("\n");
   fs.writeFileSync(unknownPath, body, "utf8");
 }
