@@ -20,7 +20,7 @@ async function approveJob(job) {
   });
 }
 
-function render(jobs) {
+function render(jobs, selectedLinks) {
   const list = document.getElementById("list");
   list.innerHTML = "";
 
@@ -47,6 +47,10 @@ function render(jobs) {
     selector.type = "checkbox";
     selector.className = "selector";
     selector.dataset.link = job.link;
+    if (selectedLinks && selectedLinks.has(job.link)) {
+      selector.checked = true;
+    }
+
     selector.addEventListener("change", () => {
       const selected = Array.from(document.querySelectorAll(".selector")).filter((el) => el.checked);
       if (bulkBar) {
@@ -65,6 +69,9 @@ function render(jobs) {
     const role = document.createElement("span");
     role.textContent = job.role ? `${job.role} ` : "Unknown role ";
 
+    const company = document.createElement("span");
+    company.textContent = job.company ? `@ ${job.company} ` : "";
+
     const link = document.createElement("a");
     link.className = "job-link";
     link.href = job.link;
@@ -74,6 +81,7 @@ function render(jobs) {
 
     info.appendChild(id);
     info.appendChild(role);
+    info.appendChild(company);
     info.appendChild(link);
 
     const actions = document.createElement("div");
@@ -105,6 +113,9 @@ function render(jobs) {
   }
 
   if (selectAll) {
+    if (selectedLinks && jobs.length > 0) {
+      selectAll.checked = selectedLinks.size === jobs.length;
+    }
     selectAll.onchange = () => {
       const checked = selectAll.checked;
       document.querySelectorAll(".selector").forEach((el) => {
@@ -115,6 +126,10 @@ function render(jobs) {
         else bulkBar.classList.add("hidden");
       }
     };
+  }
+
+  if (selectedLinks && selectedLinks.size > 0 && bulkBar) {
+    bulkBar.classList.remove("hidden");
   }
 
   if (bulkApprove) {
@@ -146,7 +161,34 @@ function render(jobs) {
   }
 }
 
-fetchJobs().then(render).catch(() => {
-  const list = document.getElementById("list");
-  list.textContent = "Failed to load unknown jobs.";
-});
+function currentSelectedLinks() {
+  return new Set(
+    Array.from(document.querySelectorAll(".selector"))
+      .filter((el) => el.checked)
+      .map((el) => el.dataset.link)
+  );
+}
+
+function jobsKey(jobs) {
+  return jobs.map((j) => j.link).join("|");
+}
+
+let lastKey = null;
+
+async function refreshJobs() {
+  try {
+    const jobs = await fetchJobs();
+    const key = jobsKey(jobs);
+    if (key !== lastKey) {
+      const selected = currentSelectedLinks();
+      render(jobs, selected);
+      lastKey = key;
+    }
+  } catch {
+    const list = document.getElementById("list");
+    list.textContent = "Failed to load unknown jobs.";
+  }
+}
+
+refreshJobs();
+setInterval(refreshJobs, 5000);

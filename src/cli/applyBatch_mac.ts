@@ -197,23 +197,42 @@ function setupControls() {
   };
 }
 
-type UnknownJob = { id: string; role?: string; link: string };
+type UnknownJob = { id: string; role?: string; company?: string; link: string };
 
 function readUnknownLinks(filePath: string): UnknownJob[] {
   if (!fs.existsSync(filePath)) return [];
   const raw = fs.readFileSync(filePath, "utf-8");
-  const match = raw.match(/export const unknownJobs\\s*=\\s*(\\[[\\s\\S]*\\]);/);
+  const match = raw.match(/export const unknownJobs\s*=\s*(\[[\s\S]*\]);/);
   if (!match) return [];
+
+  const jsonLike = match[1].replace(/,\s*]/g, "]");
   try {
-    const parsed = JSON.parse(match[1]) as unknown;
+    const parsed = JSON.parse(jsonLike) as unknown;
     if (Array.isArray(parsed)) {
       return parsed
         .map((v) => v as Partial<UnknownJob>)
         .filter((v) => typeof v.link === "string")
-        .map((v) => ({ id: String(v.id ?? ""), role: v.role ? String(v.role) : undefined, link: String(v.link) }));
+        .map((v) => ({
+          id: String(v.id ?? ""),
+          role: v.role ? String(v.role) : undefined,
+          company: v.company ? String(v.company) : undefined,
+          link: String(v.link)
+        }));
     }
   } catch {}
-  return [];
+
+  const lines = raw.split(/\r?\n/);
+  const jobs: UnknownJob[] = [];
+  for (const line of lines) {
+    const idMatch = line.match(/"id"\s*:\s*"([^"]+)"/);
+    const roleMatch = line.match(/"role"\s*:\s*"([^"]+)"/);
+    const companyMatch = line.match(/"company"\s*:\s*"([^"]+)"/);
+    const linkMatch = line.match(/"link"\s*:\s*"([^"]+)"/);
+    if (linkMatch) {
+      jobs.push({ id: idMatch?.[1] ?? "", role: roleMatch?.[1], company: companyMatch?.[1], link: linkMatch[1] });
+    }
+  }
+  return jobs;
 }
 
 function mergeUnknownLinks(existing: UnknownJob[], incoming: UnknownJob[]): UnknownJob[] {
@@ -227,8 +246,24 @@ function mergeUnknownLinks(existing: UnknownJob[], incoming: UnknownJob[]): Unkn
     if (!current.role && item.role) {
       current.role = item.role;
     }
+    if (!current.company && item.company) {
+      current.company = item.company;
+    }
   }
   return Array.from(byLink.values());
+}
+
+function writeUnknownLinks(filePath: string, jobs: UnknownJob[]) {
+  const unknownLines = jobs.map((item) => JSON.stringify(item)).join(",\n");
+  const unknownPayload = `export const unknownJobs = [\n${unknownLines}\n];\n`;
+  fs.writeFileSync(filePath, unknownPayload, "utf-8");
+}
+
+function recordUnknownJob(filePath: string, job: UnknownJob) {
+  const existing = readUnknownLinks(filePath);
+  const merged = mergeUnknownLinks(existing, [job]);
+  writeUnknownLinks(filePath, merged);
+  return merged.length;
 }
 
 async function main() {
@@ -237,6 +272,7 @@ async function main() {
   let greenhouseCount = 0;
   let leverCount = 0;
   const unknownLinks: UnknownJob[] = [];
+  const unknownOutPath = path.join(process.cwd(), "unknownJobs.js");
 
   const jobsPath = path.join(process.cwd(), "data", "jobs.csv");
   if (!fs.existsSync(jobsPath)) throw new Error(`Missing CSV: ${jobsPath}`);
@@ -290,7 +326,10 @@ async function main() {
       await liPage.waitForTimeout(1500);
     } catch {
       console.log("❌ Timed out loading job page. Skipping this job.\n");
-      unknownLinks.push({ id: jobId || "", role: title || "", link });
+      const unknownJob = { id: jobId || "", role: title || "", company: company || "", link };
+      unknownLinks.push(unknownJob);
+      const total = recordUnknownJob(unknownOutPath, unknownJob);
+      console.log(`Unknown job saved immediately. Total: ${total}`);
       await liPage.close().catch(() => {});
       continue;
     }
@@ -301,7 +340,10 @@ async function main() {
     const atsPage = await clickApplyAndFindAtsPage(context, liPage);
     if (!atsPage) {
       console.log("❌ Could not click Apply. Skipping this job.\n");
-      unknownLinks.push({ id: jobId || "", role: title || "", link });
+      const unknownJob = { id: jobId || "", role: title || "", company: company || "", link };
+      unknownLinks.push(unknownJob);
+      const total = recordUnknownJob(unknownOutPath, unknownJob);
+      console.log(`Unknown job saved immediately. Total: ${total}`);
       await liPage.close().catch(() => {});
       continue;
     }
@@ -320,7 +362,10 @@ async function main() {
     // If not ATS, close LinkedIn tab and record link
     if (platform === "unknown") {
       console.log("Not on Greenhouse/Lever/Ashby yet. Skipping this job.\n");
-      unknownLinks.push({ id: jobId || "", role: title || "", link });
+      const unknownJob = { id: jobId || "", role: title || "", company: company || "", link };
+      unknownLinks.push(unknownJob);
+      const total = recordUnknownJob(unknownOutPath, unknownJob);
+      console.log(`Unknown job saved immediately. Total: ${total}`);
       try {
         if (!atsPage.isClosed() && atsPage !== liPage) {
           await atsPage.close();
@@ -365,7 +410,10 @@ async function main() {
     } else {
       // For unsupported platforms, close tabs and record link
       console.log("Unsupported platform detected. Skipping this job.\n");
-      unknownLinks.push({ id: jobId || "", role: title || "", link });
+      const unknownJob = { id: jobId || "", role: title || "", company: company || "", link };
+      unknownLinks.push(unknownJob);
+      const total = recordUnknownJob(unknownOutPath, unknownJob);
+      console.log(`Unknown job saved immediately. Total: ${total}`);
       try {
         if (!atsPage.isClosed() && atsPage !== liPage) {
           await atsPage.close();
@@ -384,12 +432,9 @@ async function main() {
 
   console.log("✅ Step 2 complete: processed all approved jobs (tabs left open).");
   console.log(`Ashby opened: ${ashbyCount} | Greenhouse opened: ${greenhouseCount} | Lever opened: ${leverCount}`);
-  const unknownOutPath = path.join(process.cwd(), "unknownJobs.js");
   const existingUnknown = readUnknownLinks(unknownOutPath);
   const mergedUnknown = mergeUnknownLinks(existingUnknown, unknownLinks);
-  const unknownLines = mergedUnknown.map((item) => JSON.stringify(item)).join(",\n");
-  const unknownPayload = `export const unknownJobs = [\n${unknownLines}\n];\n`;
-  fs.writeFileSync(unknownOutPath, unknownPayload, "utf-8");
+  writeUnknownLinks(unknownOutPath, mergedUnknown);
   console.log(`${mergedUnknown.length} Unknown job links saved to: ${unknownOutPath}`);
   controls.lockInput();
   // Not closing browser in Step 2 yet. Step 3 will finalize "keep open".

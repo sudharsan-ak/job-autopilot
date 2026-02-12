@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 
-type UnknownJob = { id?: string; role?: string; link: string };
+type UnknownJob = { id?: string; role?: string; company?: string; link: string };
 
 const PORT = 4545;
 const unknownPath = path.join(process.cwd(), "unknownJobs.js");
@@ -29,9 +29,10 @@ function parseUnknownJobs(contents: string): UnknownJob[] {
   for (const line of lines) {
     const idMatch = line.match(/"id"\s*:\s*"([^"]+)"/);
     const roleMatch = line.match(/"role"\s*:\s*"([^"]+)"/);
+    const companyMatch = line.match(/"company"\s*:\s*"([^"]+)"/);
     const linkMatch = line.match(/"link"\s*:\s*"([^"]+)"/);
     if (linkMatch) {
-      jobs.push({ id: idMatch?.[1], role: roleMatch?.[1], link: linkMatch[1] });
+      jobs.push({ id: idMatch?.[1], role: roleMatch?.[1], company: companyMatch?.[1], link: linkMatch[1] });
     }
   }
 
@@ -50,10 +51,13 @@ function loadUnknownJobs(): UnknownJob[] {
 }
 
 function writeUnknownJobs(jobs: UnknownJob[]) {
-  const lines = jobs.map(
-    (j) => `{ "id": "${j.id ?? ""}", "role": "${j.role ?? ""}", "link": "${j.link}" },`
-  );
-  const body = ["export const unknownJobs = [", ...lines, "];"].join("\n");
+  const lines = jobs.map((j) => JSON.stringify({
+    id: j.id ?? "",
+    role: j.role ?? "",
+    company: j.company ?? "",
+    link: j.link
+  }));
+  const body = `export const unknownJobs = [\n${lines.join(",\n")}\n];\n`;
   fs.writeFileSync(unknownPath, body, "utf8");
 }
 
