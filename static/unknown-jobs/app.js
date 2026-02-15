@@ -20,9 +20,19 @@ async function approveJob(job) {
   });
 }
 
+function setTotalJobs(count) {
+  const totalEl = document.getElementById("totalJobs");
+  if (totalEl) totalEl.textContent = String(count);
+}
+
+function visibleJobCount() {
+  return document.querySelectorAll("#list .job").length;
+}
+
 function render(jobs, selectedLinks) {
   const list = document.getElementById("list");
   list.innerHTML = "";
+  setTotalJobs(jobs.length);
 
   const bulkBar = document.getElementById("bulkBar");
   const selectAll = document.getElementById("selectAll");
@@ -101,6 +111,7 @@ function render(jobs, selectedLinks) {
     reject.addEventListener("click", async () => {
       await rejectJob(job);
       row.remove();
+      setTotalJobs(visibleJobCount());
     });
 
     actions.appendChild(approve);
@@ -155,6 +166,7 @@ function render(jobs, selectedLinks) {
         if (job) await rejectJob(job);
         el.closest(".job").remove();
       }
+      setTotalJobs(visibleJobCount());
       if (selectAll) selectAll.checked = false;
       if (bulkBar) bulkBar.classList.add("hidden");
     };
@@ -187,6 +199,7 @@ async function refreshJobs() {
   } catch {
     const list = document.getElementById("list");
     list.textContent = "Failed to load unknown jobs.";
+    setTotalJobs(0);
   }
 }
 

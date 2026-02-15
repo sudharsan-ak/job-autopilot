@@ -1,1 +1,2 @@
-export const unknownJobs = [];
+export const unknownJobs = [
+];
