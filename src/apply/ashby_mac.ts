@@ -462,6 +462,42 @@ async function selectByVisibleOptionAnywhere(page: Page, optionText: string | st
   return false;
 }
 
+async function selectRadioFromQuestionOptions(
+  page: Page,
+  questionPatterns: string[],
+  optionPatterns: string[]
+) {
+  for (const q of questionPatterns) {
+    for (const o of optionPatterns) {
+      if (await selectRadioOption(page, q, o)) return true;
+    }
+  }
+  return false;
+}
+
+async function defaultAnyUnansweredYesNoToYes(page: Page) {
+  const blocks = page.locator("div, section").filter({
+    has: page.locator("button:has-text('Yes')"),
+    hasNot: page.locator("button[aria-pressed='true']:has-text('Yes')")
+  });
+
+  const count = await blocks.count().catch(() => 0);
+  for (let i = 0; i < count; i++) {
+    const block = blocks.nth(i);
+    try {
+      const yes = block.locator("button:has-text('Yes')").first();
+      const no = block.locator("button:has-text('No')").first();
+      if (!(await yes.isVisible({ timeout: 300 }).catch(() => false))) continue;
+      if (!(await no.isVisible({ timeout: 300 }).catch(() => false))) continue;
+
+      const yesSelected = await yes.getAttribute("aria-pressed").catch(() => null);
+      if (yesSelected === "true") continue;
+      await yes.click({ force: true });
+      await page.waitForTimeout(120);
+    } catch {}
+  }
+}
+
 export async function autofillAshby(page: Page, profile: Profile) {
   // 1) Force /application route
   const cur = page.url();
@@ -716,6 +752,29 @@ export async function autofillAshby(page: Page, profile: Profile) {
     await selectByVisibleOptionAnywhere(page, profile.eeo.veteranStatus);
     await selectByVisibleOptionAnywhere(page, profile.eeo.disabilityStatus);
   }
+
+  // Ashby-specific EEO fallbacks
+  await selectRadioFromQuestionOptions(
+    page,
+    ["Veteran Status", "veteran"],
+    ["I am not a protected Veteran", "not a protected veteran"]
+  );
+  await selectRadioFromQuestionOptions(
+    page,
+    ["Disability Status", "disability"],
+    [
+      "No, I do not have a disability and have not had one in the past",
+      "do not have a disability"
+    ]
+  );
+  await selectRadioFromQuestionOptions(
+    page,
+    ["Ethnicity", "Race", "race/ethnicity"],
+    ["Asian (Not Hispanic or Latino)", "Asian"]
+  );
+
+  // Last pass: default unresolved Yes/No blocks to Yes
+  await defaultAnyUnansweredYesNoToYes(page);
 
   // Re-check name after resume upload/auto-population to undo ALL CAPS.
   const nameSelectors = [

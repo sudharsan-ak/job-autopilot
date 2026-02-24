@@ -147,6 +147,27 @@ function appendCsv(filePath: string, rows: Record<string, string>[], headers: st
   fs.appendFileSync(filePath, prefix + lines.join("\n"), "utf-8");
 }
 
+function normalizeCompanyForMatch(value: string): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function loadCompanyBlacklist(filePath: string): string[] {
+  if (!fs.existsSync(filePath)) return [];
+  const raw = fs.readFileSync(filePath, "utf-8");
+  return raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+function isBlacklistedCompany(company: string, blacklist: string[]): boolean {
+  const normalized = normalizeCompanyForMatch(company);
+  if (!normalized) return false;
+  return blacklist.some((blocked) => normalized.includes(normalizeCompanyForMatch(blocked)));
+}
+
 async function autoScroll(page: any, times: number) {
   for (let i = 0; i < times; i++) {
     const didScroll = await page.evaluate(() => {
@@ -325,6 +346,8 @@ async function main() {
   const outPath = path.join(process.cwd(), "data", "jobs.csv");
   const dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  const blacklistPath = path.join(dataDir, "blacklist-companies.txt");
+  const companyBlacklist = loadCompanyBlacklist(blacklistPath);
 
   console.log("Launching browser...");
   const browser = await chromium.launch({ headless: false, slowMo: 10 });
@@ -383,6 +406,7 @@ async function main() {
   console.log("Scrolling to load job cards...");
   let jobs: JobRow[] = [];
   const seen = new Set<string>();
+  let blacklistedSkipped = 0;
 
   const collectFromCurrentPage = async (pageLabel: string) => {
     let totalScrolls = 0;
@@ -399,6 +423,10 @@ async function main() {
         if (!j.link || !j.link.includes("/jobs/view/")) continue;
         if (seen.has(j.link)) continue;
         seen.add(j.link);
+        if (isBlacklistedCompany(j.company || "", companyBlacklist)) {
+          blacklistedSkipped += 1;
+          continue;
+        }
         jobs.push(j);
       }
 
@@ -481,6 +509,13 @@ async function main() {
   }
 
   console.log(`Raw extracted job links (non-Easy Apply): ${jobs.length}`);
+  if (blacklistedSkipped > 0) {
+    const labels = companyBlacklist.length > 0 ? companyBlacklist.join(", ") : "none";
+    console.log(`Skipped ${blacklistedSkipped} jobs due to company blacklist (${labels}).`);
+  }
+  if (companyBlacklist.length === 0) {
+    console.log(`No company blacklist loaded. Add names in: ${blacklistPath}`);
+  }
 
   const capByRoleAndCompany = (items: JobRow[], maxPerKey: number) => {
     const counts = new Map<string, number>();

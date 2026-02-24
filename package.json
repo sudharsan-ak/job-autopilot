@@ -1,7 +1,7 @@
 {
   "name": "job-autopilot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Steps to follow: npm init -y npm i playwright dotenv npm i -D typescript ts-node @types/node npx playwright install",
   "main": "index.js",
   "scripts": {
     "authLinkedIn": "ts-node src/cli/authLinkedIn.ts",
@@ -23,14 +23,21 @@
   "type": "commonjs",
   "dependencies": {
     "csv-writer": "^1.6.0",
-    "dotenv": "^17.2.3",
-    "playwright": "^1.57.0",
+    "dotenv": "^17.3.1",
+    "playwright": "^1.58.2",
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
+    "@types/node": "^25.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sudharsan-ak/job-autopilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sudharsan-ak/job-autopilot/issues"
+  },
+  "homepage": "https://github.com/sudharsan-ak/job-autopilot#readme"
 }
-
