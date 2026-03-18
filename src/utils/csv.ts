@@ -55,3 +55,19 @@ function parseCsvLine(line: string): string[] {
   out.push(cur);
   return out;
 }
+
+export function csvEscape(value: string): string {
+  const raw = (value ?? "").toString();
+  if (/[",\n]/.test(raw)) {
+    return `"${raw.replace(/"/g, '""')}"`;
+  }
+  return raw;
+}
+
+export function writeCsv(filePath: string, rows: CsvRow[], headers: string[]) {
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((header) => csvEscape(row[header] ?? "")).join(","));
+  }
+  fs.writeFileSync(filePath, lines.join("\n"), "utf-8");
+}

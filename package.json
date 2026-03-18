@@ -6,7 +6,13 @@
   "scripts": {
     "authLinkedIn": "ts-node src/cli/authLinkedIn.ts",
     "authGreenhouse": "ts-node src/cli/authGreenhouse.ts",
+    "authGmail": "ts-node src/cli/authGmail.ts",
     "collectLinkedIn": "ts-node src/cli/collectLinkedIn.ts",
+    "analyzeJobs": "ts-node src/cli/analyzeJobs.ts",
+    "createOutreachDrafts": "ts-node src/cli/automated/createOutreachDrafts.ts",
+    "prepareManualOutreach": "ts-node src/cli/manual/prepareManualOutreach.ts",
+    "draftEmails": "ts-node src/cli/manual/createManualOutreachDrafts.ts",
+    "recruiterOutreach": "ts-node src/cli/automated/recruiterOutreach.ts",
     "applyBatchWindows": "ts-node src/cli/applyBatch_windows.ts",
     "applyBatchMac": "ts-node src/cli/applyBatch_mac.ts",
     "openUnknownJobs": "ts-node src/cli/openUnknownJobs.ts",
@@ -22,8 +28,10 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@google-cloud/local-auth": "^3.0.1",
     "csv-writer": "^1.6.0",
     "dotenv": "^17.3.1",
+    "googleapis": "^171.4.0",
     "playwright": "^1.58.2",
     "zod": "^4.3.5"
   },

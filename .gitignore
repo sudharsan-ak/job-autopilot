@@ -2,3 +2,10 @@ node_modules
 data/
 storage/
 package.json
+credentials.json
+gmail-token.json
+.env
+unknownJobs.js
+outReachJobs.js
+src/cli/recruiterOutreach.js
+Sudharsan Srinivasan Resume 2026.pdf

@@ -1,44 +1,165 @@
-Steps to follow:
+# Job Autopilot
+
+## Setup
+
+```powershell
 npm init -y
 npm i playwright dotenv
 npm i -D typescript ts-node @types/node
 npx playwright install
+```
 
-// run LinkedIn to login and setup local cookies:
-npm run auth:linkedin
+## Auth
 
-// Next, run with your search criteria url from linkedin
-npm run collect:linkedin -- --count=10 --url 'https://www.linkedin.com/jobs/search/?currentJobId=4253101367&distance=25.0&f_E=3%2C4&f_F=it%2Ceng&f_JT=F&f_T=9%2C39%2C25201%2C3172%2C1176&f_TPR=r86400&geoId=103644278&keywords=Software%20Engineer%20JavaScript&origin=JOBS_HOME_KEYWORD_HISTORY'
+LinkedIn session:
 
-// another version
-npm run collect:linkedin -- --count=20 --url 'https://www.linkedin.com/jobs/search/?currentJobId=4364201648&distance=25.0&f_E=3%2C4&f_F=it%2Ceng&f_JT=F&f_T=9%2C39%2C25201%2C3172%2C1176&f_TPR=r86400&geoId=103644278&keywords=Frontend%20Engineer%20JavaScript%20NOT%20(%22Easy%20Apply%22%20OR%20%22Easy%20Apply%20only%22%20OR%20%22LinkedIn%20Easy%20Apply%22%20OR%20%226%2B%20years%22%20OR%20%227%2B%20years%22%20OR%20%228%2B%20years%22%20OR%20%2210%2B%20years%22)&origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true&sortBy=DD'
+```powershell
+npm run authLinkedIn
+```
 
-// after data/jobs.csv is populated, trigger the automation
-npm run apply:batch for windows
-npm run apply:batch:mac for mac
+Greenhouse session:
 
-// while running automation to apply for jobs,
-Pause (p or Enter): finishes the current job, then pauses. Browser stays open. Console shows: "Paused. Press Enter or p to resume, s to stop."
-Resume (p or Enter while paused): continues from the next job.
-Stop (s or q): finishes the current job, then stops completely and ignores further input. Browser stays open.
-Ctrl+C: immediate hard stop (may close Playwright browser).
+```powershell
+npm run authGreenhouse
+```
 
-// to open unknown jobs in browser
-npm run open:unknown -- --count=10 (opens the 1st 10 links from unknownJobs.js file in your system's browser)
+Gmail session:
 
-// controller UI (phone/desktop)
-npm run control:ui
-// opens controller at http://localhost:5050 and prints your PC LAN IP for phone access
-// UI features:
-// - Collect: paste LinkedIn URL + count, then collect into jobs.csv
-// - Apply: runs apply:batch:mac after collect completes
-// - Clear jobs.csv / Clear unknownJobs.js (with confirmation)
-// - Pause / Resume / Stop / Kill (Ctrl+C) with confirmations
-// - Live log stream + Clear console button
+```powershell
+npm run authGmail
+```
 
-// unknown jobs review UI
-npm run unknown:ui
-// opens http://localhost:4545 to review unknownJobs.js
-// - Approve keeps the job
-// - Reject removes the job
-// - Bulk select: Approve selected / Reject selected (buttons appear after selecting)
+## Collect Jobs
+
+Run LinkedIn collection with your own search URL:
+
+```powershell
+npm run collectLinkedIn -- --count=10 --url "https://www.linkedin.com/jobs/search/?currentJobId=4253101367&distance=25.0&f_E=3%2C4&f_F=it%2Ceng&f_JT=F&f_T=9%2C39%2C25201%2C3172%2C1176&f_TPR=r86400&geoId=103644278&keywords=Software%20Engineer%20JavaScript&origin=JOBS_HOME_KEYWORD_HISTORY"
+```
+
+Another example:
+
+```powershell
+npm run collectLinkedIn -- --count=20 --url "https://www.linkedin.com/jobs/search/?currentJobId=4364201648&distance=25.0&f_E=3%2C4&f_F=it%2Ceng&f_JT=F&f_T=9%2C39%2C25201%2C3172%2C1176&f_TPR=r86400&geoId=103644278&keywords=Frontend%20Engineer%20JavaScript%20NOT%20(%22Easy%20Apply%22%20OR%20%22Easy%20Apply%20only%22%20OR%20%22LinkedIn%20Easy%20Apply%22%20OR%20%226%2B%20years%22%20OR%20%227%2B%20years%22%20OR%20%228%2B%20years%22%20OR%20%2210%2B%20years%22)&origin=JOB_SEARCH_PAGE_JOB_FILTER&refresh=true&sortBy=DD"
+```
+
+Shortcut collectors:
+
+```powershell
+npm run frontendJobs
+npm run softwareJobs
+npm run fullstackJobs
+```
+
+## Analyze Jobs
+
+After `data/jobs.csv` is populated, run:
+
+```powershell
+npm run analyzeJobs
+```
+
+What it does:
+
+- reads `data/jobs.csv`
+- opens each LinkedIn job link headlessly
+- extracts title, company, location, and `About the job` text from the rendered DOM
+- scores the job against your resume/profile
+- writes buckets to:
+  - `data/jobsStrongMatch.csv`
+  - `data/jobsPartialMatch.csv`
+  - `data/jobsSkip.csv`
+- sorts each bucket from highest fit to lowest fit
+- writes analyzed job text to:
+  - `data/analyzed-jobs/analyzedData.txt`
+- groups `analyzedData.txt` in this order:
+  - `Strong fits`
+  - `Partial fits`
+  - `Skip fits`
+- leaves the original `data/jobs.csv` unchanged
+
+Notes about matching:
+
+- strong matches are tuned around your JS/TS, React, Node, Meteor, and frontend/full-stack profile
+- roles that are clearly too senior are penalized heavily and capped out of `strong`
+- jobs with explicit clearance requirements are forced into `skip`
+
+## Apply Jobs
+
+Default run:
+
+```powershell
+npm run applyBatchWindows
+npm run applyBatchMac
+```
+
+Run against a specific CSV bucket:
+
+```powershell
+npm run applyBatchWindows -- --csv=data/jobsStrongMatch.csv
+npm run applyBatchWindows -- --csv=data/jobsPartialMatch.csv
+npm run applyBatchWindows -- --csv=data/jobsSkip.csv
+```
+
+```powershell
+npm run applyBatchMac -- --csv=data/jobsStrongMatch.csv
+npm run applyBatchMac -- --csv=data/jobsPartialMatch.csv
+npm run applyBatchMac -- --csv=data/jobsSkip.csv
+```
+
+Limit the Mac apply run to the first `N` approved jobs from the selected CSV:
+
+```powershell
+npm run applyBatchMac -- --count=5
+npm run applyBatchMac -- --csv=data/jobsStrongMatch.csv --count=5
+```
+
+Controls while apply automation is running:
+
+- Pause: `p` or `Enter`
+- Resume: `r` or `Enter`
+- Stop after current step: `s` or `q`
+- Hard stop: `Ctrl+C`
+
+## Unknown Jobs
+
+Open unknown jobs in the browser:
+
+```powershell
+npm run openUnknownJobs
+```
+
+Unknown jobs review UI:
+
+```powershell
+npm run unknownJobsUI
+```
+
+## Controller UI
+
+```powershell
+npm run controllerUI
+```
+
+This opens the controller UI and supports collecting, applying, clearing files, and pause/resume controls.
+
+## Outreach
+
+Automated outreach drafts:
+
+```powershell
+npm run createOutreachDrafts
+```
+
+Manual outreach workflow:
+
+```powershell
+npm run prepareManualOutreach
+npm run draftEmails
+```
+
+Recruiter outreach:
+
+```powershell
+npm run recruiterOutreach
+```

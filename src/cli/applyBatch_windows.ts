@@ -8,6 +8,16 @@ import { autofillAshby } from "../apply/ashby_windows";
 import { autofillGreenhouse } from "../apply/greenhouse";
 import { autofillLever } from "../apply/lever";
 
+function getArg(name: string): string | null {
+  const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (!hit) return null;
+
+  if (hit.includes("=")) return hit.split("=").slice(1).join("=");
+
+  const idx = process.argv.indexOf(hit);
+  return process.argv[idx + 1] ?? null;
+}
+
 function isTrue(v: string | undefined) {
   return (v ?? "").trim().toLowerCase() === "true";
 }
@@ -257,8 +267,13 @@ async function main() {
   let leverCount = 0;
   const unknownLinks: UnknownJob[] = [];
   const unknownOutPath = path.join(process.cwd(), "unknownJobs.js");
+  const initialUnknownLinks = readUnknownLinks(unknownOutPath);
+  const initialUnknownLinkSet = new Set(initialUnknownLinks.map((job) => job.link));
 
-  const jobsPath = path.join(process.cwd(), "data", "jobs.csv");
+  const csvArg = getArg("csv");
+  const jobsPath = csvArg
+    ? path.resolve(process.cwd(), csvArg)
+    : path.join(process.cwd(), "data", "jobs.csv");
   if (!fs.existsSync(jobsPath)) throw new Error(`Missing CSV: ${jobsPath}`);
 
   const rows = readCsv(jobsPath);
@@ -392,7 +407,9 @@ async function main() {
   const existingUnknown = readUnknownLinks(unknownOutPath);
   const mergedUnknown = mergeUnknownLinks(existingUnknown, unknownLinks);
   writeUnknownLinks(unknownOutPath, mergedUnknown);
-  console.log(`${mergedUnknown.length} Unknown job links saved to: ${unknownOutPath}`);
+  const addedThisRun = mergedUnknown.filter((job) => !initialUnknownLinkSet.has(job.link)).length;
+  console.log(`Unknown job links added this run: ${addedThisRun}`);
+  console.log(`Total unknown job links saved: ${mergedUnknown.length} -> ${unknownOutPath}`);
   controls.lockInput();
   // Not closing browser; later steps will refine.
 }

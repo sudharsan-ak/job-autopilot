@@ -9,6 +9,16 @@ import { autofillAshby } from "../apply/ashby_mac";
 import { autofillGreenhouse } from "../apply/greenhouse";
 import { autofillLever } from "../apply/lever";
 
+function getArg(name: string): string | null {
+  const hit = process.argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (!hit) return null;
+
+  if (hit.includes("=")) return hit.split("=").slice(1).join("=");
+
+  const idx = process.argv.indexOf(hit);
+  return process.argv[idx + 1] ?? null;
+}
+
 function isTrue(v: string | undefined) {
   return (v ?? "").trim().toLowerCase() === "true";
 }
@@ -273,14 +283,23 @@ async function main() {
   let leverCount = 0;
   const unknownLinks: UnknownJob[] = [];
   const unknownOutPath = path.join(process.cwd(), "unknownJobs.js");
+  const initialUnknownLinks = readUnknownLinks(unknownOutPath);
+  const initialUnknownLinkSet = new Set(initialUnknownLinks.map((job) => job.link));
 
-  const jobsPath = path.join(process.cwd(), "data", "jobs.csv");
+  const csvArg = getArg("csv");
+  const jobsPath = csvArg
+    ? path.resolve(process.cwd(), csvArg)
+    : path.join(process.cwd(), "data", "jobs.csv");
   if (!fs.existsSync(jobsPath)) throw new Error(`Missing CSV: ${jobsPath}`);
 
   const rows = readCsv(jobsPath);
   const approved = rows.filter((r) => isTrue(r.approved));
+  const countArg = getArg("count");
+  const count = countArg ? Number.parseInt(countArg, 10) : null;
+  const approvedLimited =
+    count !== null && Number.isFinite(count) && count > 0 ? approved.slice(0, count) : approved;
 
-  if (approved.length === 0) {
+  if (approvedLimited.length === 0) {
     console.log("No approved jobs found. Open data/jobs.csv and set approved=true for a few rows.");
     process.exit(0);
   }
@@ -296,14 +315,14 @@ async function main() {
   const browser = await chromium.launch({ headless: false, slowMo: 25 });
   const context = await browser.newContext({ storageState: storagePath });
 
-  console.log(`Approved jobs: ${approved.length}`);
+  console.log(`Approved jobs selected: ${approvedLimited.length}${approvedLimited.length !== approved.length ? ` of ${approved.length}` : ""}`);
   console.log("Step 2 flow: open each job in a NEW TAB -> click Apply -> switch to ATS tab if it opens -> autofill -> wait 2s -> continue.");
   console.log("NOTE: We DO NOT close previous tabs.\n");
   console.log("Controls: Enter or 'p' to pause/resume, 'r' to resume, 's' or 'q' to stop.\n");
 
   const controls = setupControls();
 
-  for (const job of approved) {
+  for (const job of approvedLimited) {
     if (controls.isStopped()) break;
     await controls.waitIfPaused();
 
@@ -435,7 +454,9 @@ async function main() {
   const existingUnknown = readUnknownLinks(unknownOutPath);
   const mergedUnknown = mergeUnknownLinks(existingUnknown, unknownLinks);
   writeUnknownLinks(unknownOutPath, mergedUnknown);
-  console.log(`${mergedUnknown.length} Unknown job links saved to: ${unknownOutPath}`);
+  const addedThisRun = mergedUnknown.filter((job) => !initialUnknownLinkSet.has(job.link)).length;
+  console.log(`Unknown job links added this run: ${addedThisRun}`);
+  console.log(`Total unknown job links saved: ${mergedUnknown.length} -> ${unknownOutPath}`);
   controls.lockInput();
   // Not closing browser in Step 2 yet. Step 3 will finalize "keep open".
 }
