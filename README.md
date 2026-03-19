@@ -66,13 +66,13 @@ What it does:
 - extracts title, company, location, and `About the job` text from the rendered DOM
 - scores the job against your resume/profile
 - writes buckets to:
-  - `data/jobsStrongMatch.csv`
-  - `data/jobsPartialMatch.csv`
+  - `data/jobsStrong.csv`
+  - `data/jobsMedium.csv`
   - `data/jobsSkip.csv`
 - sorts each bucket from highest fit to lowest fit
 - writes analyzed job text to:
-  - `data/analyzed-jobs/analyzedData.txt`
-- groups `analyzedData.txt` in this order:
+  - `data/analyzed-jobs/JDInfo.txt`
+- groups `JDInfo.txt` in this order:
   - `Strong fits`
   - `Partial fits`
   - `Skip fits`
@@ -96,14 +96,14 @@ npm run applyBatchMac
 Run against a specific CSV bucket:
 
 ```powershell
-npm run applyBatchWindows -- --csv=data/jobsStrongMatch.csv
-npm run applyBatchWindows -- --csv=data/jobsPartialMatch.csv
+npm run applyBatchWindows -- --csv=data/jobsStrong.csv
+npm run applyBatchWindows -- --csv=data/jobsMedium.csv
 npm run applyBatchWindows -- --csv=data/jobsSkip.csv
 ```
 
 ```powershell
-npm run applyBatchMac -- --csv=data/jobsStrongMatch.csv
-npm run applyBatchMac -- --csv=data/jobsPartialMatch.csv
+npm run applyBatchMac -- --csv=data/jobsStrong.csv
+npm run applyBatchMac -- --csv=data/jobsMedium.csv
 npm run applyBatchMac -- --csv=data/jobsSkip.csv
 ```
 
@@ -111,7 +111,7 @@ Limit the Mac apply run to the first `N` approved jobs from the selected CSV:
 
 ```powershell
 npm run applyBatchMac -- --count=5
-npm run applyBatchMac -- --csv=data/jobsStrongMatch.csv --count=5
+npm run applyBatchMac -- --csv=data/jobsStrong.csv --count=5
 ```
 
 Controls while apply automation is running:

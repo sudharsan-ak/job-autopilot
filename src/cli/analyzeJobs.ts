@@ -32,7 +32,7 @@ function getAnalyzedDataDir() {
 }
 
 function getAnalyzedDataPath() {
-  return path.join(getAnalyzedDataDir(), "analyzedData.txt");
+  return path.join(getAnalyzedDataDir(), "JDInfo.txt");
 }
 
 function appendFitNote(row: CsvRow, fitSummary: string) {
@@ -91,8 +91,8 @@ function writeAnalyzedJobs(filePath: string, jobs: AnalyzedJobEntry[]) {
 async function main() {
   const profile = loadProfile();
   const jobsPath = getOutputPath("jobs.csv");
-  const strongPath = getOutputPath("jobsStrongMatch.csv");
-  const partialPath = getOutputPath("jobsPartialMatch.csv");
+  const strongPath = getOutputPath("jobsStrong.csv");
+  const partialPath = getOutputPath("jobsMedium.csv");
   const skipPath = getOutputPath("jobsSkip.csv");
   const analyzedDataPath = getAnalyzedDataPath();
 
@@ -200,10 +200,10 @@ async function main() {
 
   console.log("");
   console.log(`Original data/jobs.csv left unchanged: ${rows.length}`);
-  console.log(`Strong matches written to data/jobsStrongMatch.csv: ${strongMatches.length}`);
-  console.log(`Partial matches written to data/jobsPartialMatch.csv: ${partialMatches.length}`);
+  console.log(`Strong matches written to data/jobsStrong.csv: ${strongMatches.length}`);
+  console.log(`Medium matches written to data/jobsMedium.csv: ${partialMatches.length}`);
   console.log(`Skipped matches written to data/jobsSkip.csv: ${skippedMatches.length}`);
-  console.log(`Analyzed job text written to data/analyzed-jobs/analyzedData.txt`);
+  console.log(`Analyzed job text written to data/analyzed-jobs/JDInfo.txt`);
 }
 
 main().catch((error) => {
