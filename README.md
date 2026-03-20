@@ -158,6 +158,15 @@ npm run prepareManualOutreach
 npm run draftEmails
 ```
 
+Manual outreach watcher:
+
+```powershell
+npm run watchManualOutreach
+npm run watchManualOutreach -- --intervalMinutes=3
+```
+
+This polls `data/manual-outreach/manualOutreach.txt`, keeps a local log at `data/manual-outreach/manualOutreachLog.json`, and only drafts blocks that are new or changed.
+
 Recruiter outreach:
 
 ```powershell

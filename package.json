@@ -12,6 +12,7 @@
     "createOutreachDrafts": "ts-node src/cli/automated/createOutreachDrafts.ts",
     "prepareManualOutreach": "ts-node src/cli/manual/prepareManualOutreach.ts",
     "draftEmails": "ts-node src/cli/manual/createManualOutreachDrafts.ts",
+    "watchManualOutreach": "ts-node src/cli/manual/watchManualOutreach.ts",
     "recruiterOutreach": "ts-node src/cli/automated/recruiterOutreach.ts",
     "applyBatchWindows": "ts-node src/cli/applyBatch_windows.ts",
     "applyBatchMac": "ts-node src/cli/applyBatch_mac.ts",

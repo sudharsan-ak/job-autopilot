@@ -1,5 +1,6 @@
 import { createGmailDraft } from "../../utils/gmail";
 import {
+  ManualOutreachBlock,
   getManualOutreachInputPath,
   parseManualOutreachInput,
   readManualOutreachInput
@@ -8,17 +9,14 @@ import { buildEmailBody, buildSubject, inferGreetingNameFromEmail } from "../../
 
 const BATCH_SIZE = 3;
 
-async function main() {
-  const raw = readManualOutreachInput();
-  const jobs = parseManualOutreachInput(raw);
+export type ManualDraftRunResult = {
+  successCount: number;
+  failureCount: number;
+};
 
-  if (jobs.length === 0) {
-    console.log(`No manual outreach entries found in ${getManualOutreachInputPath()}`);
-    process.exit(0);
-  }
-
-  console.log(`Creating manual outreach drafts for ${jobs.length} role block(s)...`);
-
+export async function createManualOutreachDraftsForJobs(jobs: ManualOutreachBlock[]) {
+  let successCount = 0;
+  let failureCount = 0;
   const tasks = jobs.flatMap((job, jobIndex) =>
     job.versions.map((version, versionIndex) => ({
       job,
@@ -49,15 +47,35 @@ async function main() {
           console.log(
             `Draft created: ${draft.id ?? "unknown-id"} | block ${jobIndex + 1} version ${versionIndex + 1}${to ? ` | to ${to}` : ""} | ${subject}`
           );
+          successCount += 1;
         } catch (error) {
+          failureCount += 1;
           console.error(`Failed for block ${jobIndex + 1} version ${versionIndex + 1}:`, error);
         }
       })
     );
   }
+
+  return { successCount, failureCount } satisfies ManualDraftRunResult;
 }
 
-main().catch((error) => {
-  console.error("createManualOutreachDrafts failed:", error);
-  process.exit(1);
-});
+async function main() {
+  const raw = readManualOutreachInput();
+  const jobs = parseManualOutreachInput(raw);
+
+  if (jobs.length === 0) {
+    console.log(`No manual outreach entries found in ${getManualOutreachInputPath()}`);
+    process.exit(0);
+  }
+
+  console.log(`Creating manual outreach drafts for ${jobs.length} role block(s)...`);
+  const result = await createManualOutreachDraftsForJobs(jobs);
+  console.log(`Draft run complete. Successes: ${result.successCount} | Failures: ${result.failureCount}`);
+}
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("createManualOutreachDrafts failed:", error);
+    process.exit(1);
+  });
+}
