@@ -3,7 +3,7 @@ import path from "path";
 import { authenticate } from "@google-cloud/local-auth";
 import { google } from "googleapis";
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.compose"];
+const SCOPES = ["https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"];
 const DATA_DIR = path.join(process.cwd(), "data");
 const TOKEN_PATH = path.join(DATA_DIR, "gmail-token.json");
 const CREDENTIALS_PATH = path.join(DATA_DIR, "credentials.json");
@@ -42,9 +42,13 @@ async function loadSavedClient(): Promise<any | null> {
   }
 
   const raw = fs.readFileSync(TOKEN_PATH, "utf8");
-  const token = JSON.parse(raw) as Record<string, string>;
+  const token = JSON.parse(raw) as Record<string, string | string[]>;
 
-  if (!token.client_id || !token.client_secret || !token.refresh_token) {
+  const savedScopes = Array.isArray(token.scopes) ? token.scopes : [];
+  const scopeMismatch =
+    savedScopes.length !== SCOPES.length || SCOPES.some((scope) => !savedScopes.includes(scope));
+
+  if (!token.client_id || !token.client_secret || !token.refresh_token || scopeMismatch) {
     return null;
   }
 
@@ -69,7 +73,8 @@ async function saveClient(authClient: any) {
     type: "authorized_user" as const,
     client_id: credentials.client_id,
     client_secret: credentials.client_secret,
-    refresh_token: refreshToken
+    refresh_token: refreshToken,
+    scopes: SCOPES
   };
 
   fs.writeFileSync(TOKEN_PATH, JSON.stringify(payload, null, 2), "utf8");
@@ -102,4 +107,8 @@ export async function authorizeGmail(): Promise<any> {
 
 export function getGmailTokenPath() {
   return TOKEN_PATH;
+}
+
+export function getGmailScopes() {
+  return [...SCOPES];
 }

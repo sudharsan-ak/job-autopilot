@@ -29,6 +29,8 @@ Gmail session:
 npm run authGmail
 ```
 
+Note: Gmail auth now requests both `gmail.compose` and `gmail.readonly` so draft creation and Sent-mail lookups can share the same token.
+
 ## Collect Jobs
 
 Run LinkedIn collection with your own search URL:
@@ -172,3 +174,24 @@ Recruiter outreach:
 ```powershell
 npm run recruiterOutreach
 ```
+
+## Gmail CSV Enrichment
+
+To enrich a recruiter CSV by looking through your Gmail Sent mail and finding likely recipient emails:
+
+```powershell
+npm run authGmail
+npm run enrichLinkedInCsvEmails -- --csv "C:\Users\sudha\Downloads\LinkedIn Data - LKDN.csv"
+```
+
+Optional output path:
+
+```powershell
+npm run enrichLinkedInCsvEmails -- --csv "C:\Users\sudha\Downloads\LinkedIn Data - LKDN.csv" --out "C:\Users\sudha\Downloads\LinkedIn Data - LKDN.enriched.csv"
+```
+
+The script keeps the original CSV unchanged and writes a new file with:
+
+- `Email`
+- `MatchConfidence`
+- `MatchNote`

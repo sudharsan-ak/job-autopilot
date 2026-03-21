@@ -9,6 +9,7 @@
     "authGmail": "ts-node src/cli/authGmail.ts",
     "collectLinkedIn": "ts-node src/cli/collectLinkedIn.ts",
     "analyzeJobs": "ts-node src/cli/analyzeJobs.ts",
+    "enrichLinkedInCsvEmails": "ts-node src/cli/enrichLinkedInCsvEmails.ts",
     "createOutreachDrafts": "ts-node src/cli/automated/createOutreachDrafts.ts",
     "prepareManualOutreach": "ts-node src/cli/manual/prepareManualOutreach.ts",
     "draftEmails": "ts-node src/cli/manual/createManualOutreachDrafts.ts",

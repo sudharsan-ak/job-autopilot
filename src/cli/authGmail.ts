@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import { authorizeGmail, getGmailTokenPath } from "../utils/gmailAuth";
+import { authorizeGmail, getGmailScopes, getGmailTokenPath } from "../utils/gmailAuth";
 
 async function main() {
   const auth = await authorizeGmail();
@@ -10,7 +10,7 @@ async function main() {
 
   console.log("Gmail auth complete.");
   console.log(`Saved token to: ${getGmailTokenPath()}`);
-  console.log("Scope granted: gmail.compose");
+  console.log(`Scopes granted: ${getGmailScopes().join(", ")}`);
 }
 
 main().catch((error) => {
