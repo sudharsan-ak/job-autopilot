@@ -68,7 +68,7 @@ function extractEmails(blockText: string) {
       continue;
     }
     if (
-      /^Version\s+\d+\s*:/i.test(line) ||
+      /^Version\s+\d+\s*:?\s*$/i.test(line) ||
       /^Company name\s*-\s*/i.test(line) ||
       /^Company\s*:\s*/i.test(line) ||
       /^Role\s*-\s*/i.test(line) ||
@@ -113,7 +113,7 @@ export function parseManualOutreachInput(raw: string): ManualOutreachBlock[] {
     const emails = extractEmails(blockText);
 
     const versions: string[] = [];
-    const versionRegex = /Version\s+\d+\s*:\s*([\s\S]*?)(?=\nVersion\s+\d+\s*:|\s*$)/g;
+    const versionRegex = /Version\s+\d+\s*:?\s*([\s\S]*?)(?=\nVersion\s+\d+\s*:?\s*|\s*$)/g;
     let match: RegExpExecArray | null;
 
     while ((match = versionRegex.exec(blockText)) !== null) {

@@ -175,6 +175,22 @@ Recruiter outreach:
 npm run recruiterOutreach
 ```
 
+This opens recruiter profile tabs, prepares the Connect flow, fills the note, and leaves the browser session open for manual review. Keep that first terminal and browser window open.
+
+After you review the prepared tabs, open a second terminal and send the prepared invites from the same Playwright session:
+
+```powershell
+npm run sendRecruiterOutreach -- --delaySeconds=10
+```
+
+The send command:
+
+- connects to the same existing recruiter-outreach browser session
+- checks each recruiter tab for an open connect dialog
+- skips tabs where the note is missing, empty, or the `Send` button is missing/disabled
+- clicks `Send` only on valid prepared tabs
+- waits the given number of seconds between successful sends
+
 ## Gmail CSV Enrichment
 
 To enrich a recruiter CSV by looking through your Gmail Sent mail and finding likely recipient emails:
