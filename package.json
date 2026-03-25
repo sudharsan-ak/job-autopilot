@@ -15,7 +15,6 @@
     "draftEmails": "ts-node src/cli/manual/createManualOutreachDrafts.ts",
     "watchManualOutreach": "ts-node src/cli/manual/watchManualOutreach.ts",
     "recruiterOutreach": "ts-node src/cli/automated/recruiterOutreach.ts",
-    "sendRecruiterOutreach": "ts-node src/cli/automated/sendRecruiterOutreach.ts",
     "applyBatchWindows": "ts-node src/cli/applyBatch_windows.ts",
     "applyBatchMac": "ts-node src/cli/applyBatch_mac.ts",
     "openUnknownJobs": "ts-node src/cli/openUnknownJobs.ts",
