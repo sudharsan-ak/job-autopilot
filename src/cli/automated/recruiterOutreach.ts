@@ -452,7 +452,7 @@ async function findInviteSendButton(dialog: Locator) {
   return null;
 }
 
-async function isInviteDialog(dialog: Locator) {
+async function getInviteDialogSignals(dialog: Locator) {
   const text = ((await dialog.textContent().catch(() => "")) ?? "").toLowerCase();
   const textareaVisible = await dialog.locator("textarea").first().isVisible().catch(() => false);
   const addNoteVisible = await dialog.locator("button:has-text('Add a note')").first().isVisible().catch(() => false);
@@ -476,18 +476,53 @@ async function isInviteDialog(dialog: Locator) {
     emailInputVisible ||
     (cancelVisible && sendButton !== null);
 
-  return looksLikeInviteByText || (sendButton !== null && hasInviteControls);
+  return {
+    looksLikeInviteByText,
+    hasInviteControls
+  };
+}
+
+async function isInviteDialog(dialog: Locator) {
+  const signals = await getInviteDialogSignals(dialog);
+  return signals.looksLikeInviteByText || signals.hasInviteControls;
+}
+
+async function isInviteDialogReady(dialog: Locator) {
+  const signals = await getInviteDialogSignals(dialog);
+  return signals.hasInviteControls;
+}
+
+async function getVisibleDialogCandidates(page: Page) {
+  const selectors = [
+    "[role='dialog']",
+    "[role='alertdialog']",
+    "div.artdeco-modal"
+  ];
+
+  const candidates: Locator[] = [];
+
+  for (const selector of selectors) {
+    const locators = page.locator(selector);
+    const count = await locators.count().catch(() => 0);
+
+    for (let i = 0; i < Math.min(count, 12); i += 1) {
+      const candidate = locators.nth(i);
+      const visible = await candidate.isVisible().catch(() => false);
+      if (!visible) continue;
+
+      const box = await candidate.boundingBox().catch(() => null);
+      if (!box || box.width < 100 || box.height < 100) continue;
+
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates;
 }
 
 async function findInviteDialog(page: Page) {
-  const dialogs = page.locator("[role='dialog']");
-  const count = await dialogs.count().catch(() => 0);
-
-  for (let i = 0; i < Math.min(count, 6); i += 1) {
-    const dialog = dialogs.nth(i);
-    const visible = await dialog.isVisible().catch(() => false);
-    if (!visible) continue;
-
+  const dialogs = await getVisibleDialogCandidates(page);
+  for (const dialog of dialogs) {
     const inviteDialog = await isInviteDialog(dialog);
     if (inviteDialog) {
       return dialog;
@@ -502,7 +537,17 @@ async function waitForInviteDialog(page: Page, timeoutMs = INVITE_DIALOG_TIMEOUT
 
   while (Date.now() < deadline) {
     const dialog = await findInviteDialog(page);
-    if (dialog) return dialog;
+    if (dialog) {
+      const ready = await isInviteDialogReady(dialog);
+      if (ready) {
+        await delay(350);
+        const stillReady = await isInviteDialogReady(dialog);
+        if (stillReady) {
+          return dialog;
+        }
+      }
+    }
+
     await delay(150);
   }
 
@@ -564,6 +609,15 @@ async function openHeaderConnectFlow(page: Page, attempt: AttemptDiagnostic): Pr
         attempt.dialogVisible = true;
         attempt.branch = "direct";
         pushAttemptEvent(attempt, "Invite dialog opened from direct Connect.");
+        return { status: "opened", branch: "direct", headerRoot };
+      }
+
+      await delay(600);
+      const lateDialog = await findInviteDialog(page);
+      if (lateDialog) {
+        attempt.dialogVisible = true;
+        attempt.branch = "direct";
+        pushAttemptEvent(attempt, "Invite dialog was already open after direct Connect; continuing without More fallback.");
         return { status: "opened", branch: "direct", headerRoot };
       }
 
@@ -655,7 +709,7 @@ async function fillPreparedNote(page: Page, role: string, attempt: AttemptDiagno
   }
 
   attempt.dialogVisible = true;
-  await delay(250);
+  await delay(450);
 
   let textarea = dialog.locator("textarea").first();
   let textareaVisible = await textarea.isVisible().catch(() => false);
