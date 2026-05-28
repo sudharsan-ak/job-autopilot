@@ -73,6 +73,12 @@ type AttemptDiagnostic = {
   snapshotPath: string | null;
 };
 
+type ManualReviewPage = {
+  page: Page;
+  url: string;
+  reason: FailureReason | null;
+};
+
 type HeaderActionsResult =
   | {
       status: "opened";
@@ -571,6 +577,12 @@ async function waitForInviteTextarea(dialog: Locator, timeoutMs = 5000) {
   return null;
 }
 
+async function readInviteNoteValue(textarea: Locator) {
+  return textarea.inputValue().catch(async () => {
+    return collapseWhitespace(await textarea.textContent().catch(() => ""));
+  });
+}
+
 async function getInviteDialogSignals(dialog: Locator) {
   const text = ((await dialog.textContent().catch(() => "")) ?? "").toLowerCase();
   const textareaVisible = (await findInviteTextarea(dialog)) !== null;
@@ -997,6 +1009,61 @@ async function sendPreparedNotes(pages: Page[], delaySeconds: number) {
   console.log(`\nDone. ${sent}/${pages.length} invites sent.`);
 }
 
+async function findManuallyPreparedPages(manualReviewPages: ManualReviewPage[]) {
+  const recoveredPages: Page[] = [];
+
+  if (manualReviewPages.length === 0) {
+    return recoveredPages;
+  }
+
+  console.log(`\nChecking ${manualReviewPages.length} manual-review tab(s) before sending...`);
+
+  for (let i = 0; i < manualReviewPages.length; i += 1) {
+    const item = manualReviewPages[i];
+    const reason = item.reason ? `, ${item.reason}` : "";
+    const prefix = `[manual ${i + 1}/${manualReviewPages.length} ${getProfileSlug(item.url)}${reason}]`;
+
+    try {
+      if (item.page.isClosed()) {
+        console.log(`${prefix} Tab is closed - skipping.`);
+        continue;
+      }
+
+      await item.page.bringToFront();
+      const dialog = await waitForInviteDialog(item.page, 2500);
+      if (!dialog) {
+        console.log(`${prefix} Invite dialog not found - skipping.`);
+        continue;
+      }
+
+      const textarea = await findInviteTextarea(dialog);
+      if (!textarea) {
+        console.log(`${prefix} Note editor not found - skipping.`);
+        continue;
+      }
+
+      const noteValue = await readInviteNoteValue(textarea);
+      if (!noteValue.trim()) {
+        console.log(`${prefix} Note is empty - skipping.`);
+        continue;
+      }
+
+      const sendBtn = await findInviteSendButton(dialog);
+      if (!sendBtn) {
+        console.log(`${prefix} Send button not found - skipping.`);
+        continue;
+      }
+
+      recoveredPages.push(item.page);
+      console.log(`${prefix} Manual note is ready - added to send queue.`);
+    } catch (error) {
+      console.log(`${prefix} Could not verify manual tab - skipping: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  return recoveredPages;
+}
+
 async function main() {
   const groups = readRecruiterOutreach();
   if (groups.length === 0) {
@@ -1023,6 +1090,7 @@ async function main() {
 
   let current = 0;
   const preparedPages: Page[] = [];
+  const manualReviewPages: ManualReviewPage[] = [];
 
   for (const group of groups) {
     console.log(`\nRole: ${group.role}`);
@@ -1054,6 +1122,7 @@ async function main() {
 
           appendAttemptRecord(runDir, attempt);
           console.log("Connect flow was not completed. Leaving tab open for manual review.");
+          manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
           continue;
         }
 
@@ -1068,6 +1137,7 @@ async function main() {
 
           appendAttemptRecord(runDir, attempt);
           console.log("Connect opened, but note preparation was not completed. Leaving tab open for manual review.");
+          manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
           continue;
         }
 
@@ -1090,19 +1160,32 @@ async function main() {
 
         appendAttemptRecord(runDir, attempt);
         console.error(`Failed for ${link}:`, error);
+        manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
       }
     }
   }
 
-  if (preparedPages.length === 0) {
-    console.log("\nNo notes were prepared. Nothing to send.");
+  if (preparedPages.length === 0 && manualReviewPages.length === 0) {
+    console.log("\nNo notes were prepared and no manual-review tabs are open. Nothing to send.");
     return;
   }
 
   console.log(`\n${preparedPages.length} note(s) prepared and ready.`);
+  if (manualReviewPages.length > 0) {
+    console.log(`${manualReviewPages.length} tab(s) are open for manual review and will be checked after ENTER.`);
+  }
   console.log("Review the open tabs, then come back here.");
   await waitForEnter(`Press ENTER when ready to send (${SEND_DELAY_SECONDS}s between each), or Ctrl+C to cancel: `);
-  await sendPreparedNotes(preparedPages, SEND_DELAY_SECONDS);
+
+  const manuallyPreparedPages = await findManuallyPreparedPages(manualReviewPages);
+  const sendablePages = [...preparedPages, ...manuallyPreparedPages];
+
+  if (sendablePages.length === 0) {
+    console.log("\nNo sendable invites found after manual-review check.");
+    return;
+  }
+
+  await sendPreparedNotes(sendablePages, SEND_DELAY_SECONDS);
 }
 
 main().catch((error) => {
