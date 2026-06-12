@@ -26,6 +26,12 @@ Recruiter outreach:
 npm run recruiterOutreach
 ```
 
+Show detailed Playwright flow diagnostics in the terminal:
+
+```powershell
+npm run recruiterOutreach -- --verbose
+```
+
 # Gmail CSV Enrichment
 
 Enrich a recruiter CSV by finding recipient emails from your Gmail Sent mail:

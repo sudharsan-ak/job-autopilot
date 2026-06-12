@@ -8,6 +8,7 @@ const PROFILE_READY_TIMEOUT_MS = 20000;
 const INVITE_DIALOG_TIMEOUT_MS = 10000;
 const OVERFLOW_MENU_TIMEOUT_MS = 8000;
 const SEND_DELAY_SECONDS = 5;
+const VERBOSE = process.argv.includes("--verbose");
 
 type AttemptStage =
   | "load-profile"
@@ -60,6 +61,7 @@ type AttemptDiagnostic = {
   branch: ConnectBranch;
   failureReason: FailureReason | null;
   errorMessage: string | null;
+  profileName: string | null;
   headerFound: boolean;
   menuVisible: boolean;
   dialogVisible: boolean;
@@ -121,6 +123,11 @@ function buildNote(role: string, firstName: string | null) {
     "",
     "Thanks a lot☺"
   ].join("\n");
+}
+
+async function findProfileName(page: Page) {
+  const profileName = await page.evaluate(() => document.title.match(/^([^|]+)/)?.[1]?.trim() ?? "");
+  return profileName && profileName.toLowerCase() !== "linkedin" ? profileName : null;
 }
 
 async function findFirstName(page: Page) {
@@ -191,6 +198,7 @@ function createAttemptDiagnostic(index: number, total: number, role: string, url
     branch: null,
     failureReason: null,
     errorMessage: null,
+    profileName: null,
     headerFound: false,
     menuVisible: false,
     dialogVisible: false,
@@ -207,7 +215,37 @@ function createAttemptDiagnostic(index: number, total: number, role: string, url
 
 function pushAttemptEvent(attempt: AttemptDiagnostic, message: string) {
   attempt.events.push({ stage: attempt.stage, message });
-  console.log(message);
+  verboseLog(message);
+}
+
+function verboseLog(message: string) {
+  if (VERBOSE) {
+    console.log(message);
+  }
+}
+
+function getAttemptDisplayName(attempt: AttemptDiagnostic) {
+  return attempt.profileName ?? attempt.firstName ?? getProfileSlug(attempt.url);
+}
+
+function formatFailureReason(reason: FailureReason | null) {
+  return (reason ?? "unknown error").replace(/-/g, " ");
+}
+
+function printAttemptResult(attempt: AttemptDiagnostic) {
+  const prefix = `[${attempt.index}/${attempt.total}] ${getAttemptDisplayName(attempt)}:`;
+
+  if (attempt.status === "prepared") {
+    console.log(`${prefix} Note prepared`);
+    return;
+  }
+
+  if (attempt.status === "skipped") {
+    console.log(`${prefix} Already connected/pending - skipped`);
+    return;
+  }
+
+  console.log(`${prefix} Manual review required - ${formatFailureReason(attempt.failureReason)}`);
 }
 
 function actionSummaryLabel(summary: ActionSummary) {
@@ -1086,9 +1124,12 @@ async function main() {
   const total = groups.reduce((sum, group) => sum + group.links.length, 0);
 
   console.log(`Preparing LinkedIn recruiter outreach for ${total} profile(s)...`);
-  console.log(`Diagnostics directory: ${runDir}`);
+  verboseLog(`Diagnostics directory: ${runDir}`);
 
   let current = 0;
+  let preparedCount = 0;
+  let skippedCount = 0;
+  let failedCount = 0;
   const preparedPages: Page[] = [];
   const manualReviewPages: ManualReviewPage[] = [];
 
@@ -1101,14 +1142,18 @@ async function main() {
       const attempt = createAttemptDiagnostic(current, total, group.role, link);
 
       try {
-        console.log(`[${current}/${total}] Opening ${link}`);
+        verboseLog(`[${current}/${total}] Opening ${link}`);
         await page.goto(link, { waitUntil: "domcontentloaded", timeout: 90000 });
         await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
+        attempt.profileName = await findProfileName(page);
 
         const headerResult = await openHeaderConnectFlow(page, attempt);
+        attempt.profileName = (await findProfileName(page)) ?? attempt.profileName;
         if (headerResult.status === "skipped") {
           attempt.status = "skipped";
           appendAttemptRecord(runDir, attempt);
+          skippedCount += 1;
+          printAttemptResult(attempt);
           continue;
         }
 
@@ -1121,7 +1166,8 @@ async function main() {
           }
 
           appendAttemptRecord(runDir, attempt);
-          console.log("Connect flow was not completed. Leaving tab open for manual review.");
+          failedCount += 1;
+          printAttemptResult(attempt);
           manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
           continue;
         }
@@ -1136,7 +1182,8 @@ async function main() {
           }
 
           appendAttemptRecord(runDir, attempt);
-          console.log("Connect opened, but note preparation was not completed. Leaving tab open for manual review.");
+          failedCount += 1;
+          printAttemptResult(attempt);
           manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
           continue;
         }
@@ -1146,7 +1193,8 @@ async function main() {
         attempt.failureReason = null;
         appendAttemptRecord(runDir, attempt);
 
-        console.log(`Note prepared${noteResult.firstName ? ` for ${noteResult.firstName}` : ""}. Review and send manually.`);
+        preparedCount += 1;
+        printAttemptResult(attempt);
         preparedPages.push(page);
       } catch (error) {
         attempt.status = "failed";
@@ -1159,23 +1207,29 @@ async function main() {
         }
 
         appendAttemptRecord(runDir, attempt);
-        console.error(`Failed for ${link}:`, error);
+        failedCount += 1;
+        printAttemptResult(attempt);
+        if (VERBOSE) {
+          console.error(`Failed for ${link}:`, error);
+        }
         manualReviewPages.push({ page, url: link, reason: attempt.failureReason });
       }
     }
   }
+
+  console.log(`\nSummary: ${preparedCount} prepared, ${skippedCount} skipped, ${failedCount} failed`);
 
   if (preparedPages.length === 0 && manualReviewPages.length === 0) {
     console.log("\nNo notes were prepared and no manual-review tabs are open. Nothing to send.");
     return;
   }
 
-  console.log(`\n${preparedPages.length} note(s) prepared and ready.`);
   if (manualReviewPages.length > 0) {
     console.log(`${manualReviewPages.length} tab(s) are open for manual review and will be checked after ENTER.`);
   }
-  console.log("Review the open tabs, then come back here.");
-  await waitForEnter(`Press ENTER when ready to send (${SEND_DELAY_SECONDS}s between each), or Ctrl+C to cancel: `);
+  await waitForEnter(
+    `Review the open tabs, then press ENTER to send (${SEND_DELAY_SECONDS}s between each), or Ctrl+C to cancel: `
+  );
 
   const manuallyPreparedPages = await findManuallyPreparedPages(manualReviewPages);
   const sendablePages = [...preparedPages, ...manuallyPreparedPages];
