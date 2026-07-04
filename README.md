@@ -2,7 +2,7 @@
 
 <img width="1912" height="992" alt="jobflow-automator" src="https://github.com/user-attachments/assets/f49adf92-c527-4158-9a63-111f7599013b" />
 
-Automates the job search pipeline — collecting, analyzing, applying, and outreach — using Playwright and the LinkedIn/Greenhouse/Gmail APIs.
+Automates the job search pipeline - collecting, analyzing, applying, and outreach - using Playwright and the LinkedIn/Greenhouse/Gmail APIs.
 
 ## Setup
 
