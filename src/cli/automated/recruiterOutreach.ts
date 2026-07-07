@@ -324,9 +324,18 @@ function isPendingOrFollowingAction(summary: ActionSummary) {
 }
 
 function isConnectAction(summary: ActionSummary) {
-  const combined = `${summary.text} ${summary.aria} ${summary.href}`.toLowerCase();
-  if (!combined.includes("connect") && !combined.includes("/preload/custom-invite/")) return false;
-  return !combined.includes("message") && !combined.includes("follow") && !combined.includes("contact");
+  const text = summary.text.toLowerCase();
+  const aria = summary.aria.toLowerCase();
+  const href = summary.href.toLowerCase();
+  const label = `${text} ${aria}`;
+
+  const hasInviteHref = href.includes("/preload/custom-invite/");
+  const hasInviteAria = /\binvite\b.*\bconnect\b/.test(aria);
+  const hasExactConnectText = /\bconnect\b/.test(text);
+
+  if (!hasInviteHref && !hasInviteAria && !hasExactConnectText) return false;
+  if (label.includes("mutual connection")) return false;
+  return !label.includes("message") && !label.includes("follow") && !label.includes("contact");
 }
 
 function isMoreAction(summary: ActionSummary) {
@@ -727,7 +736,7 @@ async function waitForVisibleOverflowMenu(page: Page, timeoutMs = OVERFLOW_MENU_
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const menus = page.locator("div.artdeco-dropdown__content-inner, div[role='menu']");
+    const menus = page.locator("div.artdeco-dropdown__content-inner, div[role='menu'], [popover='manual']");
     const count = await menus.count().catch(() => 0);
 
     for (let i = 0; i < Math.min(count, 6); i += 1) {
@@ -742,6 +751,36 @@ async function waitForVisibleOverflowMenu(page: Page, timeoutMs = OVERFLOW_MENU_
     }
 
     await delay(150);
+  }
+
+  return null;
+}
+
+async function findOverflowMenuConnect(page: Page, menu: Locator) {
+  const scopedSelectors = [
+    "a[role='menuitem'][href*='/preload/custom-invite/']",
+    "a[href*='/preload/custom-invite/']"
+  ];
+
+  for (const selector of scopedSelectors) {
+    const match = await findVisibleAction(menu, selector, () => true, 20);
+    if (match) {
+      return match;
+    }
+  }
+
+  const pageSelectors = [
+    "[popover='manual'] a[role='menuitem'][href*='/preload/custom-invite/']",
+    "[popover='manual'] a[href*='/preload/custom-invite/']",
+    "div[role='menu'] a[role='menuitem'][href*='/preload/custom-invite/']",
+    "div[role='menu'] a[href*='/preload/custom-invite/']"
+  ];
+
+  for (const selector of pageSelectors) {
+    const match = await findVisibleAction(page.locator("body"), selector, () => true, 20);
+    if (match) {
+      return match;
+    }
   }
 
   return null;
@@ -835,7 +874,9 @@ async function openHeaderConnectFlow(page: Page, attempt: AttemptDiagnostic): Pr
   pushAttemptEvent(attempt, `Visible More menu actions: ${formatActionList(attempt.menuActions)}`);
 
   attempt.stage = "choose-connect-from-menu";
-  const menuConnect = await findVisibleAction(menuResult.menu, "a, button, [role='menuitem'], li", isConnectAction, 30);
+  const menuConnect =
+    await findOverflowMenuConnect(page, menuResult.menu) ??
+    await findVisibleAction(menuResult.menu, "a, button, [role='menuitem'], li", isConnectAction, 30);
   if (!menuConnect) {
     attempt.failureReason = "overflow-menu-opened-no-connect";
     pushAttemptEvent(attempt, "More menu opened, but no Connect action was found inside it.");
@@ -1240,6 +1281,8 @@ async function main() {
   }
 
   await sendPreparedNotes(sendablePages, SEND_DELAY_SECONDS);
+  await waitForEnter("\nBrowser left open for review. Press ENTER to close browser and exit: ");
+  await browser.close();
 }
 
 main().catch((error) => {

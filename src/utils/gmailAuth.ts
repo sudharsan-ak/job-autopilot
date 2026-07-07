@@ -3,7 +3,11 @@ import path from "path";
 import { authenticate } from "@google-cloud/local-auth";
 import { google } from "googleapis";
 
-const SCOPES = ["https://www.googleapis.com/auth/gmail.compose", "https://www.googleapis.com/auth/gmail.readonly"];
+const SCOPES = [
+  "https://www.googleapis.com/auth/gmail.compose",
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.send"
+];
 const DATA_DIR = path.join(process.cwd(), "data");
 const TOKEN_PATH = path.join(DATA_DIR, "gmail-token.json");
 const CREDENTIALS_PATH = path.join(DATA_DIR, "credentials.json");
