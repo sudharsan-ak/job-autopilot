@@ -63,8 +63,8 @@ async function main() {
 
   for (const [index, draft] of selectedDrafts.entries()) {
     try {
-      const sent = await sendGmailDraft(draft.id);
-      console.log(`Sent: ${draft.subject || draft.id} -> message ${sent.id ?? "unknown-id"}`);
+      await sendGmailDraft(draft.id);
+      console.log(`Sent: ${draft.to || "(no recipient)"} -> ${draft.subject || "(no subject)"}`);
     } catch (error) {
       console.error(`Failed to send draft ${draft.id}:`, error);
     }
