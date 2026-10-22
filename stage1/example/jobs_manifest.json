@@ -1,0 +1,141 @@
+{
+  "batch_date": "2026-01-15",
+  "batch_status": "EXAMPLE_COMPLETE",
+  "requested_max_candidates": 3,
+  "candidates_collected": 3,
+  "classification_counts": {
+    "APPLY": 1,
+    "BORDERLINE": 1,
+    "SKIP": 1
+  },
+  "selected_count": 2,
+  "complete_count": 2,
+  "jobs": [
+    {
+      "job_key": "example-company-frontend-engineer-123",
+      "job_id": "example-123",
+      "source_job_id": "example-123",
+      "company": "Example Company",
+      "title": "Frontend Engineer",
+      "location": "Remote - United States",
+      "employment_type": "Full-time",
+      "sources": [
+        {
+          "source": "example-listing",
+          "url": "https://example.com/jobs/frontend-engineer-123"
+        }
+      ],
+      "hiringcafe_url": "https://example.com/jobs/frontend-engineer-123",
+      "employer_url": "https://careers.example.com/jobs/frontend-engineer-123",
+      "jd_source": "example",
+      "employer_jd_verified": true,
+      "posted_at": "2026-01-15",
+      "posted_at_precision": "date",
+      "freshness_status": "EXAMPLE",
+      "classification": "APPLY",
+      "fit_check": {
+        "initial_score": 8,
+        "tailored_score_estimate": 8.5,
+        "strengths": [
+          "Synthetic frontend match"
+        ],
+        "gaps": [],
+        "reason": "Synthetic example selected for application preparation."
+      },
+      "work_authorization": {
+        "status": "REVIEW_REQUIRED",
+        "notes": "Answer employer questions according to the applicant's actual status."
+      },
+      "selected_for_tailoring": true,
+      "selection_reason": "Synthetic APPLY example.",
+      "tailoring_state": "COMPLETE",
+      "resume": {
+        "tex": "resumes/Example Company - Frontend Engineer.tex",
+        "pdf": "resumes/Example Company - Frontend Engineer.pdf",
+        "validation": "EXAMPLE_ONLY",
+        "page_count": 1,
+        "extracted_text_characters": 0,
+        "sha256": null
+      },
+      "application_status": "NOT_STARTED",
+      "freshness_note": "Synthetic example only."
+    },
+    {
+      "job_key": "sample-labs-full-stack-engineer-456",
+      "job_id": "example-456",
+      "source_job_id": "example-456",
+      "company": "Sample Labs",
+      "title": "Full Stack Engineer",
+      "location": "Austin, Texas, United States",
+      "employment_type": "Full-time",
+      "sources": [
+        {
+          "source": "example-listing",
+          "url": "https://example.org/jobs/full-stack-engineer-456"
+        }
+      ],
+      "hiringcafe_url": "https://example.org/jobs/full-stack-engineer-456",
+      "employer_url": "https://jobs.example.org/full-stack-engineer-456",
+      "jd_source": "example",
+      "employer_jd_verified": true,
+      "posted_at": "2026-01-14",
+      "posted_at_precision": "date",
+      "freshness_status": "EXAMPLE",
+      "classification": "BORDERLINE",
+      "fit_check": {
+        "initial_score": 6.5,
+        "tailored_score_estimate": 7,
+        "strengths": [
+          "Synthetic full-stack match"
+        ],
+        "gaps": [
+          "Synthetic domain gap"
+        ],
+        "reason": "Synthetic borderline example retained for review."
+      },
+      "work_authorization": {
+        "status": "REVIEW_REQUIRED",
+        "notes": "Answer employer questions according to the applicant's actual status."
+      },
+      "selected_for_tailoring": true,
+      "selection_reason": "Synthetic BORDERLINE example.",
+      "tailoring_state": "COMPLETE",
+      "resume": {
+        "tex": "resumes/Sample Labs - Full Stack Engineer.tex",
+        "pdf": "resumes/Sample Labs - Full Stack Engineer.pdf",
+        "validation": "EXAMPLE_ONLY",
+        "page_count": 1,
+        "extracted_text_characters": 0,
+        "sha256": null
+      },
+      "application_status": "NOT_STARTED",
+      "freshness_note": "Synthetic example only."
+    },
+    {
+      "job_key": "demo-industries-staff-backend-engineer-789",
+      "job_id": "example-789",
+      "source_job_id": "example-789",
+      "company": "Demo Industries",
+      "title": "Staff Backend Engineer",
+      "location": "Remote - United States",
+      "employment_type": "Full-time",
+      "hiringcafe_url": "https://example.net/jobs/staff-backend-engineer-789",
+      "employer_url": "https://careers.example.net/jobs/staff-backend-engineer-789",
+      "classification": "SKIP",
+      "fit_check": {
+        "initial_score": 3,
+        "tailored_score_estimate": 3,
+        "strengths": [],
+        "gaps": [
+          "Synthetic mandatory requirement gap"
+        ],
+        "reason": "Synthetic SKIP example. Stage 2 must not import it."
+      },
+      "selected_for_tailoring": false,
+      "selection_reason": "Not selected.",
+      "tailoring_state": "NOT_SELECTED",
+      "application_status": "NOT_ELIGIBLE"
+    }
+  ],
+  "build_failures": []
+}

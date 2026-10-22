@@ -16,6 +16,58 @@ Supported modes:
 
 `prepare` and `resume` accept `wait_ms`. A short wait returns current worker state; the detached worker continues independently.
 
+## End-to-end example
+
+Validate the synthetic Stage 1 manifest without changing production state:
+
+```json
+{
+  "mode": "validate_manifest",
+  "batch_path": "../stage1/example/jobs_manifest.json"
+}
+```
+
+Load a real private dated manifest and create its queue without opening Chrome:
+
+```json
+{
+  "mode": "load",
+  "batch_path": "../stage1/YYYY-MM-DD/jobs_manifest.json"
+}
+```
+
+Prepare the next three eligible jobs sequentially:
+
+```json
+{
+  "mode": "prepare",
+  "batch_date": "YYYY-MM-DD",
+  "count": 3,
+  "wait_ms": 30000
+}
+```
+
+If the worker is still running, call status with the returned `wave_id`. Do not start another wave:
+
+```json
+{
+  "mode": "status",
+  "wave_id": "<returned-wave-id>"
+}
+```
+
+After reviewing and manually submitting specific retained tabs, record only those rows:
+
+```json
+{
+  "mode": "mark_applied",
+  "batch_date": "YYYY-MM-DD",
+  "rows": [1, 2]
+}
+```
+
+Stage 2 may navigate through safe `Next` or `Continue` steps, but it never clicks final `Submit`, `Apply`, `Finish`, `Complete`, or `Send` actions.
+
 ## `batch_application_process_test`
 
 This tool never fills or submits a form and does not write production application state.

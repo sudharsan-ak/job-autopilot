@@ -31,5 +31,10 @@ stage2/screenshots/
 stage2/test-results/
 stage2/playwright-report/
 
-# Private Stage 1 ZIP extracts and tailored resumes.
-stage1/
+# Private Stage 1 batches remain local. Track only the synthetic contract example.
+stage1/*
+!stage1/README.md
+!stage1/example/
+!stage1/example/**
+stage1/example/resumes/*.pdf
+stage1/example/resumes/*.tex

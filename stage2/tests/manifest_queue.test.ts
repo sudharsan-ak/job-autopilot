@@ -76,3 +76,13 @@ test("loader accepts the exact Stage 1 nested sources and resume schema", () => 
     assert.equal(result.jobs[0]?.status, "PENDING");
   });
 });
+
+test("tracked synthetic Stage 1 example remains loadable", () => {
+  const manifestPath = path.resolve("..", "stage1", "example", "jobs_manifest.json");
+  const result = loadManifest(manifestPath);
+  assert.equal(result.batchDate, "2026-01-15");
+  assert.equal(result.jobs.length, 2);
+  assert.deepEqual(result.jobs.map((job) => job.classification), ["APPLY", "BORDERLINE"]);
+  assert.deepEqual(result.issues, []);
+  assert.equal(result.jobs.every((job) => job.status === "PENDING_RESUME_REQUIRED"), true);
+});
