@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "fields": {
+    "01_identity": {
+      "legal_first_name": {
+        "value": "Test",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      }
+    },
+    "03_contact_and_links": {
+      "primary_email": {
+        "value": "test@example.com",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      }
+    },
+    "05_work_authorization_and_eligibility": {
+      "authorized_to_work_current": {
+        "value": true,
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "EXACT_QUESTION_APPROVAL",
+        "sensitivity": "context_sensitive",
+        "store_value": true,
+        "value_type": "boolean"
+      }
+    },
+    "14_human_only_identity_and_onboarding_boundary": {
+      "social_security_number": {
+        "value": null,
+        "status": "UNANSWERED",
+        "approval": "NEVER_AUTOFILL",
+        "policy_category": "HUMAN_ONLY",
+        "sensitivity": "human_only",
+        "store_value": false,
+        "value_type": "string"
+      }
+    }
+  },
+  "employment_history": [
+    {
+      "record_id": "employment-1",
+      "employer": "Example Company",
+      "job_title": "Software Engineer"
+      ,"location": "Example City"
+      ,"start": "2022-08"
+      ,"end": "2024-01"
+      ,"current": false
+    }
+  ],
+  "education_history": [
+    {
+      "record_id": "education-1",
+      "institution": "Example University",
+      "degree_name": "Example Degree"
+      ,"degree_level": "Masters"
+      ,"field_of_study_screenshot": "Computer Science"
+      ,"start": "2024-08"
+      ,"end": "2026-05"
+      ,"current": true
+    }
+  ]
+}

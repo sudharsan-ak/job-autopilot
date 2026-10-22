@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "application-automation",
+  "version": "0.1.0",
+  "description": "Prepares job application forms in a dedicated local browser and stops before submission.",
+  "author": {
+    "name": "Job Autopilot Maintainer"
+  },
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Job Autopilot Stage 2",
+        "shortDescription": "Prepare job applications",
+        "longDescription": "Load a Stage 1 job queue, prepare selected application forms, resolve uncertain fields, and retain every tab for manual review and submission.",
+        "developerName": "Job Autopilot Maintainer",
+        "category": "Productivity",
+        "capabilities": ["Interactive"],
+        "defaultPrompt": "Load my Stage 1 application queue and help me prepare a selected wave without submitting anything."
+      }
+    }
+  }
+}

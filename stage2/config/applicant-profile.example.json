@@ -1,0 +1,88 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Replace example values with your own data and keep the completed file outside Git.",
+  "fields": {
+    "01_identity": {
+      "legal_first_name": {
+        "value": "Example",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      },
+      "legal_last_name": {
+        "value": "Applicant",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      }
+    },
+    "03_contact_and_links": {
+      "primary_email": {
+        "value": "applicant@example.com",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      },
+      "mobile_phone": {
+        "value": "+1 555 010 0000",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      },
+      "linkedin_url": {
+        "value": "https://www.linkedin.com/in/example",
+        "status": "APPROVED",
+        "approval": "AUTO_FILL_APPROVED",
+        "policy_category": "APPROVED_VALUE_ONLY",
+        "sensitivity": "ordinary",
+        "store_value": true,
+        "value_type": "string"
+      }
+    },
+    "05_work_authorization_and_eligibility": {
+      "authorized_to_work_current": {
+        "value": null,
+        "status": "UNANSWERED",
+        "approval": "ASK_EACH_TIME",
+        "policy_category": "EXACT_QUESTION_APPROVAL",
+        "sensitivity": "context_sensitive",
+        "store_value": true,
+        "value_type": "boolean"
+      },
+      "need_sponsorship_future": {
+        "value": null,
+        "status": "UNANSWERED",
+        "approval": "ASK_EACH_TIME",
+        "policy_category": "EXACT_QUESTION_APPROVAL",
+        "sensitivity": "context_sensitive",
+        "store_value": true,
+        "value_type": "boolean"
+      }
+    },
+    "14_human_only_identity_and_onboarding_boundary": {
+      "social_security_number": {
+        "value": null,
+        "status": "UNANSWERED",
+        "approval": "NEVER_AUTOFILL",
+        "policy_category": "HUMAN_ONLY",
+        "sensitivity": "human_only",
+        "store_value": false,
+        "value_type": "string"
+      }
+    }
+  },
+  "employment_history": [],
+  "education_history": []
+}

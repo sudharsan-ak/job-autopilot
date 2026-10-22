@@ -4,6 +4,11 @@ node_modules
 data/
 storage/
 package.json
+!stage2/package.json
+!stage2/package-lock.json
+!stage2/tsconfig.json
+!stage2/plugin.json
+!stage2/mcp.json
 credentials.json
 gmail-token.json
 .env
@@ -13,3 +18,18 @@ src/cli/recruiterOutreach.js
 src/cli/recruiterOutreachCopy.js
 *Resume*.pdf
 *resume*.pdf
+
+# Discussions/Brainstorm plan files remain local.
+docs/Discussions
+
+# Stage 2 source is tracked; personal/runtime artifacts remain local.
+stage2/.env
+stage2/data/
+stage2/dist/
+stage2/logs/
+stage2/screenshots/
+stage2/test-results/
+stage2/playwright-report/
+
+# Private Stage 1 ZIP extracts and tailored resumes.
+stage1/
