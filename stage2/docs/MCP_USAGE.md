@@ -4,7 +4,7 @@
 
 Supported modes:
 
-- `load`: import a Stage 1 JSON manifest without opening Chrome.
+- `load`: import a Stage 1 JSON manifest or compatible Markdown selected-jobs table without opening Chrome.
 - `prepare`: start a detached worker for explicit rows or a bounded count.
 - `resolve_fields`: validate and apply one bundled set of AI resolutions.
 - `status`: return batch, wave, job, tab, worker, and unresolved-field state.
@@ -27,6 +27,15 @@ Validate the synthetic Stage 1 manifest without changing production state:
 }
 ```
 
+The same mode accepts a Markdown table:
+
+```json
+{
+  "mode": "validate_manifest",
+  "batch_path": "../stage1/YYYY-MM-DD/selected_jobs.md"
+}
+```
+
 Load a real private dated manifest and create its queue without opening Chrome:
 
 ```json
@@ -35,6 +44,8 @@ Load a real private dated manifest and create its queue without opening Chrome:
   "batch_path": "../stage1/YYYY-MM-DD/jobs_manifest.json"
 }
 ```
+
+To build the same queue from a Markdown shortlist, pass that file as `batch_path` instead. The table must contain Role, Company, Job URL, and Classification columns. Application URL, Resume Path, Job Key, and ATS columns are optional.
 
 Prepare the next three eligible jobs sequentially:
 

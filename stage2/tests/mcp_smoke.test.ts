@@ -13,6 +13,12 @@ test("stdio MCP starts, exposes both tools, and serves isolated diagnostics", as
   writeFileSync(manifestPath, JSON.stringify({ batch_date: "2026-10-17", jobs: [
     { classification: "APPLY", title: "Engineer", company: "Example", application_url: "https://example.com/apply", resume_path: "resume.pdf" },
   ] }));
+  const markdownPath = path.join(dataDir, "2026-10-18-selected_jobs.md");
+  writeFileSync(markdownPath, [
+    "| Role | Company | Job URL | Classification | ATS |",
+    "| --- | --- | --- | --- | --- |",
+    "| Frontend Engineer | Example Co | [Open job](https://example.com/jobs/markdown) | APPLY | Ashby |",
+  ].join("\n"));
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [path.join(root, "dist", "src", "mcp", "server.js")],
@@ -35,9 +41,19 @@ test("stdio MCP starts, exposes both tools, and serves isolated diagnostics", as
     assert.equal((result.structuredContent as { ok?: boolean } | undefined)?.ok, true);
     const databaseCheck = await client.callTool({ name: "batch_application_process_test", arguments: { mode: "database_check" } });
     assert.equal((databaseCheck.structuredContent as { ok?: boolean } | undefined)?.ok, true);
+    const validatedMarkdown = await client.callTool({
+      name: "batch_application_process_test",
+      arguments: { mode: "validate_manifest", batch_path: markdownPath },
+    });
+    assert.equal((validatedMarkdown.structuredContent as { ok?: boolean } | undefined)?.ok, true);
+    assert.equal((validatedMarkdown.structuredContent as { eligible_jobs?: number } | undefined)?.eligible_jobs, 1);
     const loaded = await client.callTool({ name: "batch_application_process", arguments: { mode: "load", batch_path: manifestPath } });
     assert.equal((loaded.structuredContent as { ok?: boolean } | undefined)?.ok, true);
     assert.equal((loaded.structuredContent as { browser_opened?: boolean } | undefined)?.browser_opened, false);
+    const loadedMarkdown = await client.callTool({ name: "batch_application_process", arguments: { mode: "load", batch_path: markdownPath } });
+    assert.equal((loadedMarkdown.structuredContent as { ok?: boolean } | undefined)?.ok, true);
+    assert.equal((loadedMarkdown.structuredContent as { total_jobs?: number } | undefined)?.total_jobs, 1);
+    assert.equal((loadedMarkdown.structuredContent as { browser_opened?: boolean } | undefined)?.browser_opened, false);
   } finally {
     await client.close();
     rmSync(dataDir, { recursive: true, force: true });

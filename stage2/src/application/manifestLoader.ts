@@ -6,12 +6,130 @@ import { createJobKey, normalizeNavigableUrl, normalizeText, sha256 } from "../u
 
 const UnknownObjectSchema = z.record(z.string(), z.unknown());
 
+interface ParsedSource {
+  parsed: unknown;
+  issues: string[];
+}
+
 export interface ManifestLoadResult {
   sourcePath: string;
   fingerprint: string;
   batchDate: string;
   jobs: ImportedJob[];
   issues: string[];
+}
+
+function splitMarkdownRow(line: string): string[] {
+  const body = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let current = "";
+  let escaped = false;
+  for (const character of body) {
+    if (escaped) {
+      current += character;
+      escaped = false;
+    } else if (character === "\\") {
+      escaped = true;
+    } else if (character === "|") {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += character;
+    }
+  }
+  if (escaped) current += "\\";
+  cells.push(current.trim());
+  return cells;
+}
+
+function normalizeMarkdownHeader(value: string): string {
+  return value
+    .replace(/[`*_]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function markdownText(value: string): string {
+  return value
+    .replace(/\[([^\]]+)]\([^)]*\)/g, "$1")
+    .replace(/<br\s*\/?\s*>/gi, " ")
+    .replace(/[`*_]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function markdownUrl(value: string): string | undefined {
+  const linked = value.match(/\[[^\]]*]\((https?:\/\/[^\s)]+)\)/i)?.[1];
+  const bracketed = value.match(/<(https?:\/\/[^>]+)>/i)?.[1];
+  const bare = value.match(/https?:\/\/[^\s|>]+/i)?.[0];
+  return linked ?? bracketed ?? bare;
+}
+
+function columnIndex(headers: string[], names: string[]): number {
+  return headers.findIndex((header) => names.includes(header));
+}
+
+function parseMarkdownJobs(markdown: string): Record<string, unknown>[] | undefined {
+  const lines = markdown.split(/\r?\n/);
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const headerLine = lines[index]!;
+    const dividerLine = lines[index + 1]!;
+    if (!headerLine.includes("|") || !dividerLine.includes("|")) continue;
+    const rawHeaders = splitMarkdownRow(headerLine);
+    const divider = splitMarkdownRow(dividerLine);
+    if (rawHeaders.length !== divider.length || !divider.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+
+    const headers = rawHeaders.map(normalizeMarkdownHeader);
+    const titleIndex = columnIndex(headers, ["role", "title", "job title", "position"]);
+    const companyIndex = columnIndex(headers, ["company", "company name", "employer", "organization"]);
+    const sourceUrlIndex = columnIndex(headers, ["job url", "url", "source url", "listing url", "hiringcafe url"]);
+    const classificationIndex = columnIndex(headers, ["classification", "recommendation", "decision", "disposition", "fit status", "status"]);
+    if ([titleIndex, companyIndex, sourceUrlIndex, classificationIndex].some((value) => value < 0)) continue;
+
+    const applicationUrlIndex = columnIndex(headers, ["application url", "apply url", "employer url"]);
+    const resumePathIndex = columnIndex(headers, ["resume path", "resume", "pdf path", "tailored resume path"]);
+    const jobKeyIndex = columnIndex(headers, ["job key", "provider job id", "source job id"]);
+    const atsIndex = columnIndex(headers, ["ats", "platform"]);
+    const jobs: Record<string, unknown>[] = [];
+
+    for (let rowIndex = index + 2; rowIndex < lines.length; rowIndex += 1) {
+      const line = lines[rowIndex]!;
+      if (!line.trim() || !line.includes("|")) break;
+      const cells = splitMarkdownRow(line);
+      if (cells.length !== headers.length) continue;
+      const sourceUrl = markdownUrl(cells[sourceUrlIndex]!) ?? markdownText(cells[sourceUrlIndex]!);
+      const record: Record<string, unknown> = {
+        title: markdownText(cells[titleIndex]!),
+        company: markdownText(cells[companyIndex]!),
+        job_url: sourceUrl,
+        classification: markdownText(cells[classificationIndex]!),
+      };
+      if (applicationUrlIndex >= 0) record.application_url = markdownUrl(cells[applicationUrlIndex]!) ?? markdownText(cells[applicationUrlIndex]!);
+      if (resumePathIndex >= 0) record.resume_path = markdownText(cells[resumePathIndex]!);
+      if (jobKeyIndex >= 0) record.job_key = markdownText(cells[jobKeyIndex]!);
+      if (atsIndex >= 0) record.ats_hint = markdownText(cells[atsIndex]!);
+      jobs.push(record);
+    }
+    return jobs;
+  }
+  return undefined;
+}
+
+function parseSource(raw: Buffer, sourcePath: string): ParsedSource {
+  const text = raw.toString("utf8");
+  const extension = path.extname(sourcePath).toLowerCase();
+  if ([".md", ".markdown"].includes(extension)) {
+    const jobs = parseMarkdownJobs(text);
+    return jobs
+      ? { parsed: { jobs }, issues: [] }
+      : { parsed: { jobs: [] }, issues: ["No compatible Markdown job table was found."] };
+  }
+  try {
+    return { parsed: JSON.parse(text) as unknown, issues: [] };
+  } catch (error) {
+    throw new Error(`Stage 1 input must be valid JSON or a Markdown table: ${String(error)}`);
+  }
 }
 
 function firstText(record: Record<string, unknown>, keys: string[]): string | undefined {
@@ -81,9 +199,10 @@ export function loadManifest(manifestPath: string): ManifestLoadResult {
   const sourcePath = path.resolve(manifestPath);
   const manifestDirectory = path.dirname(sourcePath);
   const raw = readFileSync(sourcePath);
-  const parsed: unknown = JSON.parse(raw.toString("utf8"));
+  const source = parseSource(raw, sourcePath);
+  const parsed = source.parsed;
   const candidates = candidateArray(parsed);
-  const issues: string[] = [];
+  const issues: string[] = [...source.issues];
   const jobs: ImportedJob[] = [];
   const firstByKey = new Map<string, number>();
 

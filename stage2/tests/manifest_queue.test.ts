@@ -86,3 +86,36 @@ test("tracked synthetic Stage 1 example remains loadable", () => {
   assert.deepEqual(result.issues, []);
   assert.equal(result.jobs.every((job) => job.status === "PENDING_RESUME_REQUIRED"), true);
 });
+
+test("Markdown selected-jobs tables load by header name", () => {
+  withTempDir((directory) => {
+    const manifestPath = path.join(directory, "2026-10-22-selected_jobs.md");
+    writeFileSync(manifestPath, [
+      "# Selected jobs",
+      "",
+      "| ATS | Classification | Job URL | Company | Role | Resume Path |",
+      "| --- | --- | --- | --- | --- | --- |",
+      "| Ashby | APPLY | [Open job](https://example.com/jobs/1?utm_source=test) | Example Co | Frontend Engineer | resumes/frontend.pdf |",
+      "| Greenhouse | BORDERLINE | https://example.org/jobs/2 | Sample Co | Full Stack Engineer | |",
+      "| Lever | SKIP | https://example.net/jobs/3 | Ignored Co | Backend Engineer | |",
+      "",
+    ].join("\n"));
+    const result = loadManifest(manifestPath);
+    assert.equal(result.batchDate, "2026-10-22");
+    assert.equal(result.jobs.length, 2);
+    assert.deepEqual(result.jobs.map((job) => job.classification), ["APPLY", "BORDERLINE"]);
+    assert.equal(result.jobs[0]?.sourceUrl, "https://example.com/jobs/1");
+    assert.equal(result.jobs[0]?.title, "Frontend Engineer");
+    assert.equal(result.jobs[0]?.company, "Example Co");
+    assert.equal(result.jobs[0]?.resumePath, path.join(directory, "resumes", "frontend.pdf"));
+    assert.deepEqual(result.issues, []);
+  });
+});
+
+test("tracked selected-jobs Markdown example remains loadable", () => {
+  const selectedJobsPath = path.resolve("..", "stage1", "example", "selected_jobs.md");
+  const result = loadManifest(selectedJobsPath);
+  assert.equal(result.jobs.length, 2);
+  assert.deepEqual(result.jobs.map((job) => job.classification), ["APPLY", "BORDERLINE"]);
+  assert.deepEqual(result.issues, []);
+});

@@ -19,8 +19,8 @@ The tracked [`../stage1/example`](../stage1/example/) folder demonstrates the St
 
 1. Configure `.env`, install dependencies, and run `npm test`.
 2. Launch the dedicated port-9224 Chrome profile and install/sign in to Simplify in that profile if Simplify-first autofill is desired.
-3. Validate the Stage 1 manifest with `batch_application_process_test`, mode `validate_manifest`.
-4. Load the manifest with `batch_application_process`, mode `load`. This creates `application_queue.md` and does not open Chrome.
+3. Validate the Stage 1 JSON manifest or Markdown selected-jobs table with `batch_application_process_test`, mode `validate_manifest`.
+4. Load the selected input with `batch_application_process`, mode `load`. This creates `application_queue.md` and does not open Chrome.
 5. Prepare an explicit queue count or row list with mode `prepare`. Jobs run sequentially.
 6. Poll mode `status` until the detached wave completes. Workday destinations are skipped. Other application tabs remain open for review.
 7. Review every retained tab and submit manually. Stage 2 never clicks the final submission action.
